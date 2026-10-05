@@ -1,22 +1,873 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* =========================================
+   PRO PZO - PROFESSIONAL REAL ESTATE UI
+   ========================================= */
+
+:root {
+  --primary: #0f62fe;
+  --primary-dark: #084298;
+  --secondary: #16a34a;
+  --dark: #111827;
+  --text: #374151;
+  --muted: #6b7280;
+  --light: #f5f7fb;
+  --white: #ffffff;
+  --border: #e5e7eb;
+  --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --radius: 18px;
 }
 
-body {
-  font-family: Arial, sans-serif;
-  background: #f5f7fb;
-  color: #172033;
+/* =========================================
+   APP
+   ========================================= */
+
+.app {
+  min-height: 100vh;
+  background: var(--light);
+  color: var(--text);
 }
 
-button,
-input,
-select {
-  font-family: inherit;
+/* =========================================
+   HEADER
+   ========================================= */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+
+  min-height: 72px;
+  padding: 0 5%;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 25px;
+
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+
+  backdrop-filter: blur(12px);
 }
 
-a {
-  text-decoration: none;
-  color: inherit;
+/* =========================================
+   LOGO
+   ========================================= */
+
+.logo {
+  font-size: 25px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.logo::after {
+  content: " •";
+  color: #16a34a;
+}
+
+/* =========================================
+   NAVIGATION
+   ========================================= */
+
+nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+}
+
+nav a {
+  position: relative;
+
+  padding: 10px 13px;
+
+  color: #374151;
+  font-size: 14px;
+  font-weight: 700;
+
+  border-radius: 10px;
+
+  transition: all 0.25s ease;
+}
+
+nav a:hover {
+  color: var(--primary);
+  background: #eff6ff;
+  transform: translateY(-1px);
+}
+
+nav a::after {
+  content: "";
+  position: absolute;
+  left: 13px;
+  right: 13px;
+  bottom: 4px;
+
+  height: 2px;
+  width: 0;
+
+  background: var(--primary);
+  border-radius: 10px;
+
+  transition: width 0.25s ease;
+}
+
+nav a:hover::after {
+  width: calc(100% - 26px);
+}
+
+/* =========================================
+   POST PROPERTY BUTTON
+   ========================================= */
+
+.post-btn {
+  padding: 12px 20px;
+
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f62fe, #084298);
+
+  border-radius: 12px;
+
+  font-size: 14px;
+  font-weight: 800;
+
+  box-shadow: 0 8px 20px rgba(15, 98, 254, 0.22);
+
+  transition: all 0.25s ease;
+}
+
+.post-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(15, 98, 254, 0.3);
+}
+
+/* =========================================
+   MAIN
+   ========================================= */
+
+main {
+  width: 100%;
+  min-height: calc(100vh - 72px);
+}
+
+/* =========================================
+   HERO
+   ========================================= */
+
+.hero {
+  position: relative;
+
+  min-height: 560px;
+  padding: 90px 6%;
+
+  display: flex;
+  align-items: center;
+
+  overflow: hidden;
+
+  background:
+    linear-gradient(
+      115deg,
+      rgba(5, 24, 55, 0.96),
+      rgba(15, 98, 254, 0.72)
+    );
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+
+  width: 420px;
+  height: 420px;
+
+  right: -120px;
+  top: -120px;
+
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+
+  width: 280px;
+  height: 280px;
+
+  left: -100px;
+  bottom: -100px;
+
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+
+  max-width: 760px;
+
+  animation: heroFade 0.8s ease;
+}
+
+@keyframes heroFade {
+  from {
+    opacity: 0;
+    transform: translateY(25px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================================
+   BADGE
+   ========================================= */
+
+.badge {
+  display: inline-block;
+
+  margin-bottom: 20px;
+  padding: 8px 15px;
+
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 30px;
+
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+
+  backdrop-filter: blur(10px);
+}
+
+/* =========================================
+   HERO HEADING
+   ========================================= */
+
+.hero h1 {
+  margin-bottom: 20px;
+
+  color: #ffffff;
+
+  font-size: clamp(42px, 6vw, 72px);
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: -2px;
+}
+
+.hero h1 span {
+  display: inline-block;
+  color: #8fd3ff;
+}
+
+.hero p {
+  max-width: 650px;
+  margin-bottom: 30px;
+
+  color: rgba(255, 255, 255, 0.86);
+
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+/* =========================================
+   HERO BUTTONS
+   ========================================= */
+
+.hero button {
+  padding: 14px 24px;
+
+  margin-right: 10px;
+  margin-bottom: 10px;
+
+  border-radius: 12px;
+
+  font-weight: 800;
+
+  transition: all 0.25s ease;
+}
+
+.hero button:hover {
+  transform: translateY(-3px);
+}
+
+/* =========================================
+   SECTION
+   ========================================= */
+
+section {
+  scroll-margin-top: 90px;
+}
+
+.section {
+  width: min(1200px, 92%);
+  margin: 0 auto;
+  padding: 70px 0;
+}
+
+.section-title {
+  margin-bottom: 35px;
+
+  text-align: center;
+
+  color: var(--dark);
+
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 900;
+}
+
+.section-subtitle {
+  max-width: 700px;
+  margin: -20px auto 40px;
+
+  text-align: center;
+
+  color: var(--muted);
+}
+
+/* =========================================
+   PROPERTY GRID
+   ========================================= */
+
+.property-grid,
+.properties-grid,
+.cards {
+  display: grid;
+
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  gap: 24px;
+}
+
+/* =========================================
+   PROPERTY CARD
+   ========================================= */
+
+.property-card,
+.card {
+  overflow: hidden;
+
+  background: #ffffff;
+
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+
+  box-shadow: var(--shadow);
+
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.property-card:hover,
+.card:hover {
+  transform: translateY(-8px);
+
+  border-color: rgba(15, 98, 254, 0.25);
+
+  box-shadow:
+    0 20px 45px rgba(15, 23, 42, 0.12);
+}
+
+.property-card img,
+.card img {
+  width: 100%;
+  height: 220px;
+
+  object-fit: cover;
+
+  transition: transform 0.4s ease;
+}
+
+.property-card:hover img,
+.card:hover img {
+  transform: scale(1.04);
+}
+
+.property-card-content,
+.card-content {
+  padding: 20px;
+}
+
+.property-card h2,
+.property-card h3,
+.card h2,
+.card h3 {
+  margin-bottom: 8px;
+
+  color: var(--dark);
+
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.property-card p,
+.card p {
+  margin-bottom: 7px;
+
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* =========================================
+   PRICE
+   ========================================= */
+
+.price {
+  margin: 12px 0;
+
+  color: var(--primary);
+
+  font-size: 22px;
+  font-weight: 900;
+}
+
+/* =========================================
+   BADGES / TAGS
+   ========================================= */
+
+.tag,
+.property-tag {
+  display: inline-block;
+
+  padding: 6px 10px;
+  margin: 4px 4px 4px 0;
+
+  color: #065f46;
+  background: #ecfdf5;
+
+  border-radius: 20px;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* =========================================
+   CARD BUTTON
+   ========================================= */
+
+.card button,
+.property-card button {
+  width: 100%;
+
+  margin-top: 14px;
+  padding: 12px 16px;
+
+  color: #ffffff;
+  background: var(--primary);
+
+  border-radius: 10px;
+
+  font-weight: 800;
+
+  transition: all 0.25s ease;
+}
+
+.card button:hover,
+.property-card button:hover {
+  background: var(--primary-dark);
+  transform: translateY(-2px);
+}
+
+/* =========================================
+   SEARCH / FILTER AREA
+   ========================================= */
+
+.search-box,
+.search-bar,
+.filters {
+  width: min(1100px, 92%);
+  margin: 30px auto;
+
+  padding: 20px;
+
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  background: #ffffff;
+
+  border: 1px solid var(--border);
+  border-radius: 16px;
+
+  box-shadow: var(--shadow);
+}
+
+.search-box input,
+.search-bar input,
+.filters input,
+.filters select,
+.search-box select,
+.search-bar select {
+  flex: 1;
+  min-width: 180px;
+
+  padding: 13px 15px;
+
+  color: var(--dark);
+  background: #ffffff;
+
+  border: 1px solid #d9dee8;
+  border-radius: 10px;
+}
+
+.search-box button,
+.search-bar button,
+.filters button {
+  padding: 13px 22px;
+
+  color: #ffffff;
+  background: var(--primary);
+
+  border-radius: 10px;
+
+  font-weight: 800;
+}
+
+/* =========================================
+   FORMS
+   ========================================= */
+
+.form-container,
+.form-box {
+  width: min(700px, 92%);
+  margin: 50px auto;
+  padding: 30px;
+
+  background: #ffffff;
+
+  border: 1px solid var(--border);
+  border-radius: 18px;
+
+  box-shadow: var(--shadow);
+}
+
+.form-container h2,
+.form-box h2 {
+  margin-bottom: 25px;
+
+  color: var(--dark);
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.form-container input,
+.form-container textarea,
+.form-container select,
+.form-box input,
+.form-box textarea,
+.form-box select {
+  width: 100%;
+
+  margin-bottom: 15px;
+  padding: 13px 15px;
+
+  border: 1px solid #d9dee8;
+  border-radius: 10px;
+
+  background: #ffffff;
+}
+
+.form-container textarea,
+.form-box textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.form-container button,
+.form-box button {
+  width: 100%;
+  padding: 14px;
+
+  color: #ffffff;
+  background: var(--primary);
+
+  border-radius: 10px;
+
+  font-weight: 800;
+}
+
+/* =========================================
+   EMPTY / INFO
+   ========================================= */
+
+.empty-state {
+  width: min(700px, 92%);
+  margin: 50px auto;
+  padding: 50px 20px;
+
+  text-align: center;
+
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+
+  box-shadow: var(--shadow);
+}
+
+.empty-state h2 {
+  margin-bottom: 10px;
+  color: var(--dark);
+}
+
+.empty-state p {
+  color: var(--muted);
+}
+
+/* =========================================
+   FOOTER
+   ========================================= */
+
+footer {
+  margin-top: 50px;
+  padding: 45px 5%;
+
+  color: rgba(255, 255, 255, 0.8);
+
+  background: #0b1220;
+
+  text-align: center;
+}
+
+footer h2,
+footer h3 {
+  margin-bottom: 10px;
+  color: #ffffff;
+}
+
+footer a {
+  color: #8fd3ff;
+}
+
+footer a:hover {
+  color: #ffffff;
+}
+
+/* =========================================
+   FLOATING WHATSAPP
+   ========================================= */
+
+.whatsapp-btn {
+  position: fixed;
+
+  right: 20px;
+  bottom: 20px;
+
+  z-index: 2000;
+
+  width: 56px;
+  height: 56px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #ffffff;
+  background: #25d366;
+
+  border-radius: 50%;
+
+  font-size: 25px;
+
+  box-shadow: 0 10px 25px rgba(37, 211, 102, 0.3);
+
+  transition: transform 0.25s ease;
+}
+
+.whatsapp-btn:hover {
+  transform: scale(1.1);
+}
+
+/* =========================================
+   ANIMATIONS
+   ========================================= */
+
+@keyframes float {
+  0% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.animate {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* =========================================
+   TABLET
+   ========================================= */
+
+@media (max-width: 1000px) {
+  .header {
+    padding: 0 3%;
+    gap: 12px;
+  }
+
+  nav {
+    gap: 2px;
+  }
+
+  nav a {
+    padding: 9px 8px;
+    font-size: 13px;
+  }
+
+  .post-btn {
+    padding: 10px 13px;
+    font-size: 13px;
+  }
+
+  .property-grid,
+  .properties-grid,
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* =========================================
+   MOBILE
+   ========================================= */
+
+@media (max-width: 700px) {
+  .header {
+    position: relative;
+
+    min-height: auto;
+    padding: 15px 4%;
+
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    font-size: 22px;
+  }
+
+  nav {
+    order: 3;
+
+    width: 100%;
+
+    display: flex;
+    justify-content: flex-start;
+
+    overflow-x: auto;
+
+    padding-bottom: 3px;
+  }
+
+  nav a {
+    flex: 0 0 auto;
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .post-btn {
+    margin-left: auto;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .hero {
+    min-height: 520px;
+    padding: 65px 5%;
+  }
+
+  .hero h1 {
+    font-size: 42px;
+    letter-spacing: -1.5px;
+  }
+
+  .hero p {
+    font-size: 16px;
+  }
+
+  .property-grid,
+  .properties-grid,
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .section {
+    padding: 50px 0;
+  }
+
+  .search-box,
+  .search-bar,
+  .filters {
+    width: 92%;
+    padding: 15px;
+  }
+
+  .search-box input,
+  .search-bar input,
+  .filters input,
+  .filters select,
+  .search-box select,
+  .search-bar select {
+    min-width: 100%;
+  }
+
+  .form-container,
+  .form-box {
+    padding: 22px;
+  }
+}
+
+/* =========================================
+   SMALL MOBILE
+   ========================================= */
+
+@media (max-width: 420px) {
+  .hero {
+    min-height: 480px;
+    padding: 50px 5%;
+  }
+
+  .hero h1 {
+    font-size: 35px;
+  }
+
+  .hero p {
+    font-size: 15px;
+  }
+
+  .logo {
+    font-size: 20px;
+  }
+
+  .post-btn {
+    font-size: 11px;
+    padding: 9px 10px;
+  }
+
+  .property-card img,
+  .card img {
+    height: 200px;
+  }
+
+  .whatsapp-btn {
+    right: 15px;
+    bottom: 15px;
+
+    width: 52px;
+    height: 52px;
+  }
 }
