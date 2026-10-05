@@ -1,109 +1,124 @@
 import React from "react";
 
-function Plots() {
-  const properties = [
+function Projects() {
+  const projects = [
     {
-      title: "Residential Plot",
-      location: "Greater Noida, Uttar Pradesh",
-      price: "₹35 Lakh",
-      type: "Plot",
-      size: "120 Sq.Yd."
-    },
-    {
-      title: "Premium Residential Plot",
+      title: "Premium Heights",
       location: "Noida, Uttar Pradesh",
-      price: "₹55 Lakh",
-      type: "Plot",
-      size: "150 Sq.Yd."
+      price: "₹75 Lakh Onwards",
+      type: "Residential Project",
+      units: "2 & 3 BHK"
     },
     {
-      title: "Gated Township Plot",
+      title: "Green Valley Residency",
+      location: "Greater Noida, Uttar Pradesh",
+      price: "₹55 Lakh Onwards",
+      type: "Residential Project",
+      units: "2 & 3 BHK"
+    },
+    {
+      title: "Urban Square",
+      location: "Gurugram, Haryana",
+      price: "₹1.10 Cr Onwards",
+      type: "Residential Project",
+      units: "3 & 4 BHK"
+    },
+    {
+      title: "Royal Garden City",
       location: "Ghaziabad, Uttar Pradesh",
-      price: "₹28 Lakh",
-      type: "Plot",
-      size: "100 Sq.Yd."
+      price: "₹45 Lakh Onwards",
+      type: "Residential Project",
+      units: "2 & 3 BHK"
     },
     {
-      title: "Corner Residential Plot",
-      location: "Greater Noida West",
-      price: "₹48 Lakh",
-      type: "Plot",
-      size: "125 Sq.Yd."
-    },
-    {
-      title: "Premium Farm Plot",
+      title: "Yamuna Greens",
       location: "Yamuna Expressway",
-      price: "₹32 Lakh",
-      type: "Plot",
-      size: "200 Sq.Yd."
+      price: "₹38 Lakh Onwards",
+      type: "Residential Project",
+      units: "2 & 3 BHK"
     },
     {
-      title: "Investment Plot",
-      location: "Jewar, Uttar Pradesh",
-      price: "₹22 Lakh",
-      type: "Plot",
-      size: "100 Sq.Yd."
+      title: "Skyline Business Hub",
+      location: "Noida, Uttar Pradesh",
+      price: "₹90 Lakh Onwards",
+      type: "Commercial Project",
+      units: "Shops & Offices"
     }
   ];
 
   return (
     <main className="page">
-      <section className="page-hero">
-        <span className="badge">PLOTS</span>
 
-        <h1>Find Your Perfect Plot</h1>
+      <section className="page-hero">
+        <span className="badge">PROJECTS</span>
+
+        <h1>Explore Premium Projects</h1>
 
         <p>
-          Explore residential and investment plots in prime locations
-          across India.
+          Discover residential and commercial projects in
+          high-growth locations.
         </p>
       </section>
 
       <section className="property-section">
+
         <div className="section-heading">
-          <h2>Featured Plots</h2>
-          <p>Explore verified plot options for living and investment.</p>
+          <h2>Featured Projects</h2>
+
+          <p>
+            Find the right project for your home or investment.
+          </p>
         </div>
 
         <div className="property-grid">
-          {properties.map((property, index) => (
+
+          {projects.map((project, index) => (
+
             <div className="property-card" key={index}>
+
               <div className="property-image">
-                <span>Plot</span>
+                <span>Project</span>
               </div>
 
               <div className="property-content">
-                <h3>{property.title}</h3>
+
+                <h3>{project.title}</h3>
 
                 <p className="location">
-                  📍 {property.location}
+                  📍 {project.location}
                 </p>
 
                 <div className="property-details">
-                  <span>{property.type}</span>
-                  <span>{property.size}</span>
+                  <span>{project.type}</span>
+                  <span>{project.units}</span>
                 </div>
 
                 <div className="property-bottom">
-                  <strong>{property.price}</strong>
+
+                  <strong>{project.price}</strong>
 
                   <button
                     onClick={() =>
-                      alert(
-                        `Enquiry for ${property.title}`
-                      )
+                      alert(`Enquiry for ${project.title}`)
                     }
                   >
                     Enquire
                   </button>
+
                 </div>
+
               </div>
+
             </div>
+
           ))}
+
         </div>
+
       </section>
+
     </main>
   );
 }
 
-export default Plots;
+export default Projects;
