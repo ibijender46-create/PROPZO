@@ -14,9 +14,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { data, error } = await supabase
-      .from("notifications")
-      .select("*");
+    const { data, error } = await supabase.rpc("get_notifications");
 
     if (error) {
       return res.status(500).json({
