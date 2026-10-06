@@ -1,4 +1,4 @@
-const API_BASE = "/api";
+const API_BASE = "https://kend-opal.vercel.app/api";
 
 export async function getProperties() {
   const response = await fetch(`${API_BASE}/properties`);
