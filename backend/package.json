@@ -1,11 +1,12 @@
 {
-  "name": "propzo-backend",
+  "name": "prozpo-backend",
   "version": "1.0.0",
   "private": true,
   "engines": {
     "node": "22.x"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2"
+    "@supabase/supabase-js": "^2",
+    "openai": "^7.28.0"
   }
 }
