@@ -1,3 +1,4 @@
+import Auth from "./pages/Auth";
 import React, { useState } from "react";
 import "./App.css";
 
@@ -41,6 +42,9 @@ function App() {
       case "builders":
         return <Builders />;
 
+        case "auth":
+  return <Auth />;
+
       default:
         return <Home />;
     }
@@ -60,7 +64,7 @@ function App() {
           PROPZO
         </div>
 
-        {/* NAVIGATION */}
+         {/* NAVIGATION */}
         <nav>
 
           <button onClick={() => navigate("home")}>
