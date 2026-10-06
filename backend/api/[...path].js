@@ -14,23 +14,37 @@ const tableMap = {
   favorites: "favorites",
   "property-images": "property_images",
   reviews: "reviews",
-  notifications: "notifications"
+  notifications: "notifications",
+  profiles: "profiles",
+  amenities: "amenities",
+  locations: "locations",
+  saved_searches: "saved_searches",
+  reports: "reports",
+  property_views: "property_views"
 };
+
+function sendError(res, error, status = 500) {
+  return res.status(status).json({
+    success: false,
+    message: error?.message || "Something went wrong"
+  });
+}
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-res.setHeader(
-  "Access-Control-Allow-Methods",
-  "GET,POST,PUT,DELETE,OPTIONS"
-);
-res.setHeader(
-  "Access-Control-Allow-Headers",
-  "Content-Type, Authorization"
-);
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET,POST,PUT,DELETE,OPTIONS"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
 
-if (req.method === "OPTIONS") {
-  return res.status(204).end();
-}
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
   try {
     const path = req.url
       .split("?")[0]
@@ -39,14 +53,17 @@ if (req.method === "OPTIONS") {
       .filter(Boolean);
 
     const route = path[0] || "health";
+    const id = path[1];
 
+    // HEALTH
     if (route === "health") {
       return res.status(200).json({
         success: true,
-        message: "PROZPO Backend connected to Supabase"
+        message: "PROZPO Backend is running"
       });
     }
 
+    // AUTH
     if (route === "auth") {
       if (req.method !== "POST") {
         return res.status(405).json({
@@ -55,7 +72,12 @@ if (req.method === "OPTIONS") {
         });
       }
 
-      const { action, email, password, name } = req.body || {};
+      const {
+        action,
+        email,
+        password,
+        name
+      } = req.body || {};
 
       if (!email || !password) {
         return res.status(400).json({
@@ -64,24 +86,29 @@ if (req.method === "OPTIONS") {
         });
       }
 
+      // REGISTER
       if (action === "register") {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: { name: name || "" }
+            data: {
+              name: name || ""
+            }
           }
         });
 
         if (error) throw error;
 
-        return res.status(200).json({
+        return res.status(201).json({
           success: true,
           message: "Registration successful",
-          user: data.user
+          user: data.user,
+          session: data.session
         });
       }
 
+      // LOGIN
       if (action === "login") {
         const { data, error } =
           await supabase.auth.signInWithPassword({
@@ -101,10 +128,11 @@ if (req.method === "OPTIONS") {
 
       return res.status(400).json({
         success: false,
-        message: "Invalid action"
+        message: "Invalid auth action"
       });
     }
 
+    // TABLE ROUTE
     const table = tableMap[route];
 
     if (!table) {
@@ -113,40 +141,87 @@ if (req.method === "OPTIONS") {
         message: "API route not found"
       });
     }
-if (req.method === "GET") {
-  if (table === "notifications") {
-    const { data, error } = await supabase.rpc("get_notifications");
 
-    if (error) throw error;
+    // GET
+    if (req.method === "GET") {
+      let query = supabase
+        .from(table)
+        .select("*");
 
-    return res.status(200).json({
-      success: true,
-      notifications: data || []
-    });
-  }
+      if (id) {
+        query = query.eq("id", id).single();
+      }
 
-  const { data, error } = await supabase
-    .from(table)
-    .select("*");
+      const { data, error } = await query;
 
-  if (error) throw error;
+      if (error) throw error;
 
-  return res.status(200).json({
-    success: true,
-    [route.replace("-", "_")]: data || []
-  });
-}
+      return res.status(200).json({
+        success: true,
+        data: data || []
+      });
+    }
 
+    // POST
     if (req.method === "POST") {
+      const body = req.body || {};
+
       const { data, error } = await supabase
         .from(table)
-        .insert(req.body || {})
-        .select()
+        .insert(body)
+        .select("*")
         .single();
 
       if (error) throw error;
 
       return res.status(201).json({
+        success: true,
+        data
+      });
+    }
+
+    // PUT
+    if (req.method === "PUT") {
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          message: "Record ID is required"
+        });
+      }
+
+      const { data, error } = await supabase
+        .from(table)
+        .update(req.body || {})
+        .eq("id", id)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      return res.status(200).json({
+        success: true,
+        data
+      });
+    }
+
+    // DELETE
+    if (req.method === "DELETE") {
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          message: "Record ID is required"
+        });
+      }
+
+      const { data, error } = await supabase
+        .from(table)
+        .delete()
+        .eq("id", id)
+        .select("*");
+
+      if (error) throw error;
+
+      return res.status(200).json({
         success: true,
         data
       });
@@ -158,9 +233,6 @@ if (req.method === "GET") {
     });
 
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    return sendError(res, error);
   }
 };
