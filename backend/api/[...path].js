@@ -18,16 +18,18 @@ const tableMap = {
   profiles: "profiles",
   amenities: "amenities",
   locations: "locations",
-  saved_searches: "saved_searches",
+  "property-amenities": "property_amenities",
+  "property-views": "property_views",
   reports: "reports",
-  property_views: "property_views"
+  "saved-searches": "saved_searches"
 };
 
-function sendError(res, error, status = 500) {
-  return res.status(status).json({
-    success: false,
-    message: error?.message || "Something went wrong"
-  });
+function getPath(req) {
+  return req.url
+    .split("?")[0]
+    .replace(/^\/api\/?/, "")
+    .split("/")
+    .filter(Boolean);
 }
 
 module.exports = async (req, res) => {
@@ -46,16 +48,12 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const path = req.url
-      .split("?")[0]
-      .replace(/^\/api\/?/, "")
-      .split("/")
-      .filter(Boolean);
+    const path = getPath(req);
 
     const route = path[0] || "health";
     const id = path[1];
 
-    // HEALTH
+    /* HEALTH */
     if (route === "health") {
       return res.status(200).json({
         success: true,
@@ -63,7 +61,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    // AUTH
+    /* AUTH */
     if (route === "auth") {
       if (req.method !== "POST") {
         return res.status(405).json({
@@ -86,21 +84,21 @@ module.exports = async (req, res) => {
         });
       }
 
-      // REGISTER
       if (action === "register") {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              name: name || ""
+        const { data, error } =
+          await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                name: name || ""
+              }
             }
-          }
-        });
+          });
 
         if (error) throw error;
 
-        return res.status(201).json({
+        return res.status(200).json({
           success: true,
           message: "Registration successful",
           user: data.user,
@@ -108,7 +106,6 @@ module.exports = async (req, res) => {
         });
       }
 
-      // LOGIN
       if (action === "login") {
         const { data, error } =
           await supabase.auth.signInWithPassword({
@@ -132,7 +129,6 @@ module.exports = async (req, res) => {
       });
     }
 
-    // TABLE ROUTE
     const table = tableMap[route];
 
     if (!table) {
@@ -142,14 +138,14 @@ module.exports = async (req, res) => {
       });
     }
 
-    // GET
+    /* GET */
     if (req.method === "GET") {
       let query = supabase
         .from(table)
         .select("*");
 
       if (id) {
-        query = query.eq("id", id).single();
+        query = query.eq("id", id).maybeSingle();
       }
 
       const { data, error } = await query;
@@ -162,15 +158,16 @@ module.exports = async (req, res) => {
       });
     }
 
-    // POST
+    /* POST */
     if (req.method === "POST") {
       const body = req.body || {};
 
-      const { data, error } = await supabase
-        .from(table)
-        .insert(body)
-        .select("*")
-        .single();
+      const { data, error } =
+        await supabase
+          .from(table)
+          .insert(body)
+          .select()
+          .single();
 
       if (error) throw error;
 
@@ -180,7 +177,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    // PUT
+    /* PUT */
     if (req.method === "PUT") {
       if (!id) {
         return res.status(400).json({
@@ -189,12 +186,13 @@ module.exports = async (req, res) => {
         });
       }
 
-      const { data, error } = await supabase
-        .from(table)
-        .update(req.body || {})
-        .eq("id", id)
-        .select("*")
-        .single();
+      const { data, error } =
+        await supabase
+          .from(table)
+          .update(req.body || {})
+          .eq("id", id)
+          .select()
+          .single();
 
       if (error) throw error;
 
@@ -204,7 +202,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    // DELETE
+    /* DELETE */
     if (req.method === "DELETE") {
       if (!id) {
         return res.status(400).json({
@@ -213,11 +211,12 @@ module.exports = async (req, res) => {
         });
       }
 
-      const { data, error } = await supabase
-        .from(table)
-        .delete()
-        .eq("id", id)
-        .select("*");
+      const { data, error } =
+        await supabase
+          .from(table)
+          .delete()
+          .eq("id", id)
+          .select();
 
       if (error) throw error;
 
@@ -233,6 +232,9 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
-    return sendError(res, error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Server error"
+    });
   }
 };
