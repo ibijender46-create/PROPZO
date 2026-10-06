@@ -1,50 +1,36 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { getProperties } from "../src/api";
 
 function Buy() {
-  const properties = [
-    {
-      title: "Premium 2 BHK Apartment",
-      location: "Noida, Uttar Pradesh",
-      price: "₹65 Lakh",
-      type: "Apartment",
-      beds: "2 BHK",
-    },
-    {
-      title: "Luxury 3 BHK Apartment",
-      location: "Gurugram, Haryana",
-      price: "₹1.25 Cr",
-      type: "Apartment",
-      beds: "3 BHK",
-    },
-    {
-      title: "Residential Plot",
-      location: "Greater Noida, Uttar Pradesh",
-      price: "₹45 Lakh",
-      type: "Plot",
-      beds: "120 Sq. Yds.",
-    },
-    {
-      title: "Premium Villa",
-      location: "Noida Extension",
-      price: "₹1.10 Cr",
-      type: "Villa",
-      beds: "3 BHK",
-    },
-    {
-      title: "Commercial Office Space",
-      location: "Sector 62, Noida",
-      price: "₹85 Lakh",
-      type: "Commercial",
-      beds: "1200 Sq. Ft.",
-    },
-    {
-      title: "Modern 2 BHK Home",
-      location: "Ghaziabad, Uttar Pradesh",
-      price: "₹52 Lakh",
-      type: "Apartment",
-      beds: "2 BHK",
-    },
-  ];
+    const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getProperties()
+      .then((data) => {
+        const formatted = data.map((p) => ({
+          title: p.title || "Property",
+          location: p.location || "Location",
+          price: p.price
+            ? `₹${Number(p.price).toLocaleString("en-IN")}`
+            : "Price on Request",
+          type: p.property_type || p.type || "Property",
+          beds: p.bedrooms
+            ? `${p.bedrooms} BHK`
+            : p.area
+            ? `${p.area} Sq. Ft.`
+            : "Details"
+        }));
+
+        setProperties(formatted);
+      })
+      .catch((error) => {
+        console.error(error);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
 
   return (
     <main className="buy-page">
