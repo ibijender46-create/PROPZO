@@ -1,7 +1,7 @@
-import Auth from "./pages/Auth";
 import React, { useState } from "react";
 import "./App.css";
 
+import Auth from "../pages/Auth";
 import Home from "../pages/Home";
 import Buy from "../pages/Buy";
 import Rent from "../pages/Rent";
@@ -10,6 +10,7 @@ import Plots from "../pages/Plots";
 import Projects from "../pages/Projects";
 import Agents from "../pages/Agents";
 import Builders from "../pages/Builders";
+import PostProperty from "../pages/PostProperty";
 
 function App() {
   const [page, setPage] = useState("home");
@@ -42,9 +43,13 @@ function App() {
       case "builders":
         return <Builders />;
 
-        case "auth":
-  return <Auth />;
+      case "auth":
+        return <Auth />;
 
+      case "post-property":
+        return <PostProperty />;
+
+      case "home":
       default:
         return <Home />;
     }
@@ -64,7 +69,7 @@ function App() {
           PROPZO
         </div>
 
-         {/* NAVIGATION */}
+        {/* NAVIGATION */}
         <nav>
 
           <button onClick={() => navigate("home")}>
@@ -104,7 +109,7 @@ function App() {
         {/* POST PROPERTY */}
         <button
           className="post-btn"
-          onClick={() => alert("Post Property feature coming soon!")}
+          onClick={() => navigate("post-property")}
         >
           Post Property
         </button>
@@ -151,6 +156,18 @@ function App() {
 
           <button onClick={() => navigate("projects")}>
             Projects
+          </button>
+
+          <button onClick={() => navigate("agents")}>
+            Agents
+          </button>
+
+          <button onClick={() => navigate("builders")}>
+            Builders
+          </button>
+
+          <button onClick={() => navigate("post-property")}>
+            Post Property
           </button>
 
         </div>
