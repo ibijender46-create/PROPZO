@@ -1,19 +1,38 @@
 const API_BASE =
   import.meta.env.VITE_API_URL || "/api";
 
+/* =========================
+   REQUEST HELPER
+========================= */
+
 async function request(endpoint, options = {}) {
+  const token = localStorage.getItem("prozpo_access_token");
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_BASE}${endpoint}`, {
     method: options.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    },
-    body: options.body
-      ? JSON.stringify(options.body)
-      : undefined
+    headers,
+    body:
+      options.body !== undefined
+        ? JSON.stringify(options.body)
+        : undefined,
   });
 
-  const result = await response.json();
+  let result = {};
+
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error("Invalid server response");
+  }
 
   if (!response.ok || result.success === false) {
     throw new Error(
@@ -29,8 +48,7 @@ async function request(endpoint, options = {}) {
 ========================= */
 
 export async function healthCheck() {
-  const result = await request("/health");
-  return result;
+  return request("/health");
 }
 
 /* =========================
@@ -40,7 +58,7 @@ export async function healthCheck() {
 export async function registerUser({
   email,
   password,
-  name
+  name,
 }) {
   const result = await request("/auth", {
     method: "POST",
@@ -48,27 +66,45 @@ export async function registerUser({
       action: "register",
       email,
       password,
-      name
-    }
+      name,
+    },
   });
+
+  if (result.session?.access_token) {
+    localStorage.setItem(
+      "prozpo_access_token",
+      result.session.access_token
+    );
+  }
 
   return result;
 }
 
 export async function loginUser({
   email,
-  password
+  password,
 }) {
   const result = await request("/auth", {
     method: "POST",
     body: {
       action: "login",
       email,
-      password
-    }
+      password,
+    },
   });
 
+  if (result.session?.access_token) {
+    localStorage.setItem(
+      "prozpo_access_token",
+      result.session.access_token
+    );
+  }
+
   return result;
+}
+
+export function logoutUser() {
+  localStorage.removeItem("prozpo_access_token");
 }
 
 /* =========================
@@ -80,12 +116,17 @@ export async function getRecords(
   id = null
 ) {
   const endpoint = id
-    ? `/${resource}/${id}`
+    ? `/${resource}?id=${encodeURIComponent(id)}`
     : `/${resource}`;
 
   const result = await request(endpoint);
 
-  return result.data || [];
+  return (
+    result.data ||
+    result[resource] ||
+    result[resource.replace("-", "_")] ||
+    []
+  );
 }
 
 export async function createRecord(
@@ -94,10 +135,15 @@ export async function createRecord(
 ) {
   const result = await request(`/${resource}`, {
     method: "POST",
-    body: data
+    body: data,
   });
 
-  return result.data;
+  return (
+    result.data ||
+    result[resource] ||
+    result[resource.replace("-", "_")] ||
+    result
+  );
 }
 
 export async function updateRecord(
@@ -106,14 +152,19 @@ export async function updateRecord(
   data
 ) {
   const result = await request(
-    `/${resource}/${id}`,
+    `/${resource}?id=${encodeURIComponent(id)}`,
     {
       method: "PUT",
-      body: data
+      body: data,
     }
   );
 
-  return result.data;
+  return (
+    result.data ||
+    result[resource] ||
+    result[resource.replace("-", "_")] ||
+    result
+  );
 }
 
 export async function deleteRecord(
@@ -121,13 +172,13 @@ export async function deleteRecord(
   id
 ) {
   const result = await request(
-    `/${resource}/${id}`,
+    `/${resource}?id=${encodeURIComponent(id)}`,
     {
-      method: "DELETE"
+      method: "DELETE",
     }
   );
 
-  return result.data;
+  return result;
 }
 
 /* =========================
@@ -139,7 +190,11 @@ export async function getProperties() {
 }
 
 export async function getProperty(id) {
-  return getRecords("properties", id);
+  const result = await request(
+    `/properties?id=${encodeURIComponent(id)}`
+  );
+
+  return result.properties?.[0] || null;
 }
 
 export async function createProperty(data) {
@@ -163,7 +218,11 @@ export async function getProjects() {
 }
 
 export async function getProject(id) {
-  return getRecords("projects", id);
+  const result = await request(
+    `/projects?id=${encodeURIComponent(id)}`
+  );
+
+  return result.projects?.[0] || null;
 }
 
 export async function createProject(data) {
@@ -187,7 +246,11 @@ export async function getAgents() {
 }
 
 export async function getAgent(id) {
-  return getRecords("agents", id);
+  const result = await request(
+    `/agents?id=${encodeURIComponent(id)}`
+  );
+
+  return result.agents?.[0] || null;
 }
 
 export async function createAgent(data) {
@@ -211,7 +274,11 @@ export async function getBuilders() {
 }
 
 export async function getBuilder(id) {
-  return getRecords("builders", id);
+  const result = await request(
+    `/builders?id=${encodeURIComponent(id)}`
+  );
+
+  return result.builders?.[0] || null;
 }
 
 export async function createBuilder(data) {
@@ -266,13 +333,34 @@ export async function deleteFavorite(id) {
    PROPERTY IMAGES
 ========================= */
 
-export async function getPropertyImages() {
-  return getRecords("property-images");
+export async function getPropertyImages(
+  propertyId = null
+) {
+  const endpoint = propertyId
+    ? `/property-images?property_id=${encodeURIComponent(
+        propertyId
+      )}`
+    : "/property-images";
+
+  const result = await request(endpoint);
+
+  return result.images || [];
 }
 
 export async function createPropertyImage(data) {
   return createRecord(
     "property-images",
+    data
+  );
+}
+
+export async function updatePropertyImage(
+  id,
+  data
+) {
+  return updateRecord(
+    "property-images",
+    id,
     data
   );
 }
@@ -288,8 +376,18 @@ export async function deletePropertyImage(id) {
    REVIEWS
 ========================= */
 
-export async function getReviews() {
-  return getRecords("reviews");
+export async function getReviews(
+  propertyId = null
+) {
+  const endpoint = propertyId
+    ? `/reviews?property_id=${encodeURIComponent(
+        propertyId
+      )}`
+    : "/reviews";
+
+  const result = await request(endpoint);
+
+  return result.reviews || [];
 }
 
 export async function createReview(data) {
@@ -309,27 +407,64 @@ export async function deleteReview(id) {
 ========================= */
 
 export async function getNotifications() {
-  return getRecords("notifications");
+  const result = await request(
+    "/notifications"
+  );
+
+  return result.notifications || [];
+}
+
+export async function createNotification(data) {
+  return createRecord(
+    "notifications",
+    data
+  );
+}
+
+export async function updateNotification(
+  id,
+  data
+) {
+  return updateRecord(
+    "notifications",
+    id,
+    data
+  );
+}
+
+export async function deleteNotification(id) {
+  return deleteRecord(
+    "notifications",
+    id
+  );
 }
 
 /* =========================
-   PROFILES
+   PROFILE
 ========================= */
 
-export async function getProfiles() {
-  return getRecords("profiles");
+export async function getProfile() {
+  const result = await request("/profile");
+
+  return result.profile || null;
 }
 
-export async function getProfile(id) {
-  return getRecords("profiles", id);
+export async function saveProfile(data) {
+  const result = await request("/profile", {
+    method: "POST",
+    body: data,
+  });
+
+  return result.profile || null;
 }
 
-export async function createProfile(data) {
-  return createRecord("profiles", data);
-}
+export async function updateProfile(data) {
+  const result = await request("/profile", {
+    method: "PUT",
+    body: data,
+  });
 
-export async function updateProfile(id, data) {
-  return updateRecord("profiles", id, data);
+  return result.profile || null;
 }
 
 /* =========================
@@ -379,7 +514,10 @@ export async function getReports() {
 }
 
 export async function createReport(data) {
-  return createRecord("reports", data);
+  return createRecord(
+    "reports",
+    data
+  );
 }
 
 /* =========================
@@ -396,3 +534,34 @@ export async function createPropertyView(data) {
     data
   );
 }
+
+/* =========================
+   AI
+========================= */
+
+export async function askAI(
+  prompt,
+  provider = "openai"
+) {
+  const result = await request("/ai", {
+    method: "POST",
+    body: {
+      prompt,
+      provider,
+    },
+  });
+
+  return result.answer || "";
+}
+
+/* =========================
+   AI SHORTCUTS
+========================= */
+
+export async function askOpenAI(prompt) {
+  return askAI(prompt, "openai");
+}
+
+export async function askGemini(prompt) {
+  return askAI(prompt, "gemini");
+                            }
