@@ -100,19 +100,29 @@ module.exports = async (req, res) => {
         message: "API route not found"
       });
     }
+if (req.method === "GET") {
+  if (table === "notifications") {
+    const { data, error } = await supabase.rpc("get_notifications");
 
-    if (req.method === "GET") {
-      const { data, error } = await supabase
-        .from(table)
-        .select("*");
+    if (error) throw error;
 
-      if (error) throw error;
+    return res.status(200).json({
+      success: true,
+      notifications: data || []
+    });
+  }
 
-      return res.status(200).json({
-        success: true,
-        [route.replace("-", "_")]: data || []
-      });
-    }
+  const { data, error } = await supabase
+    .from(table)
+    .select("*");
+
+  if (error) throw error;
+
+  return res.status(200).json({
+    success: true,
+    [route.replace("-", "_")]: data || []
+  });
+}
 
     if (req.method === "POST") {
       const { data, error } = await supabase
