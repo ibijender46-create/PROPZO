@@ -6,6 +6,10 @@ const supabase = createClient(
   process.env.SUPABASE_SECRET_KEY
 );
 
+/* =========================
+   DATABASE TABLES
+========================= */
+
 const tables = {
   properties: "properties",
   projects: "projects",
@@ -25,33 +29,54 @@ const tables = {
   "saved-searches": "saved_searches",
 };
 
+/* =========================
+   GET ROUTE
+========================= */
+
 function getRoute(req) {
-  return req.url
+  const url = req.url || "";
+
+  return url
     .split("?")[0]
     .replace(/^\/api\/?/, "")
     .split("/")
     .filter(Boolean);
 }
 
+/* =========================
+   GET AUTH USER
+========================= */
+
 async function getUser(req) {
-  const auth =
+  const authorization =
     req.headers.authorization || "";
 
-  if (!auth.startsWith("Bearer ")) {
+  if (!authorization.startsWith("Bearer ")) {
     return null;
   }
 
-  const token = auth.replace("Bearer ", "");
+  const token =
+    authorization.replace("Bearer ", "").trim();
+
+  if (!token) {
+    return null;
+  }
 
   const {
     data: { user },
     error,
   } = await supabase.auth.getUser(token);
 
-  if (error || !user) return null;
+  if (error || !user) {
+    return null;
+  }
 
   return user;
 }
+
+/* =========================
+   RESPONSE FORMAT
+========================= */
 
 function responseData(route, data) {
   const keyMap = {
@@ -79,7 +104,15 @@ function responseData(route, data) {
   };
 }
 
+/* =========================
+   MAIN API
+========================= */
+
 module.exports = async (req, res) => {
+  /* =========================
+     CORS
+  ========================= */
+
   res.setHeader(
     "Access-Control-Allow-Origin",
     "*"
@@ -95,18 +128,30 @@ module.exports = async (req, res) => {
     "Content-Type, Authorization"
   );
 
+  /* =========================
+     OPTIONS
+  ========================= */
+
   if (req.method === "OPTIONS") {
     return res.status(204).end();
   }
 
   try {
     const path = getRoute(req);
-    const route = path[0] || "health";
-    const id = path[1] || req.query?.id;
 
-    /* =========================
+    const route =
+      path[0] ||
+      req.query?.route ||
+      "health";
+
+    const id =
+      path[1] ||
+      req.query?.id ||
+      null;
+
+    /* ==================================================
        HEALTH
-    ========================= */
+    ================================================== */
 
     if (route === "health") {
       const { error } = await supabase
@@ -114,7 +159,9 @@ module.exports = async (req, res) => {
         .select("id")
         .limit(1);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return res.status(200).json({
         success: true,
@@ -124,9 +171,9 @@ module.exports = async (req, res) => {
       });
     }
 
-    /* =========================
+    /* ==================================================
        AUTH
-    ========================= */
+    ================================================== */
 
     if (route === "auth") {
       if (req.method !== "POST") {
@@ -151,6 +198,10 @@ module.exports = async (req, res) => {
         });
       }
 
+      /* =========================
+         REGISTER
+      ========================= */
+
       if (action === "register") {
         if (!name) {
           return res.status(400).json({
@@ -159,19 +210,27 @@ module.exports = async (req, res) => {
           });
         }
 
-        const { data, error } =
-          await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: { name },
+        const {
+          data,
+          error,
+        } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              name,
             },
-          });
+          },
+        });
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         if (data.user) {
-          await supabase
+          const {
+            error: profileError,
+          } = await supabase
             .from("profiles")
             .upsert(
               {
@@ -185,6 +244,13 @@ module.exports = async (req, res) => {
                 onConflict: "user_id",
               }
             );
+
+          if (profileError) {
+            console.error(
+              "Profile creation error:",
+              profileError
+            );
+          }
         }
 
         return res.status(200).json({
@@ -196,14 +262,23 @@ module.exports = async (req, res) => {
         });
       }
 
+      /* =========================
+         LOGIN
+      ========================= */
+
       if (action === "login") {
-        const { data, error } =
+        const {
+          data,
+          error,
+        } =
           await supabase.auth.signInWithPassword({
             email,
             password,
           });
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return res.status(200).json({
           success: true,
@@ -219,9 +294,9 @@ module.exports = async (req, res) => {
       });
     }
 
-    /* =========================
+    /* ==================================================
        AI
-    ========================= */
+    ================================================== */
 
     if (route === "ai") {
       if (req.method !== "POST") {
@@ -243,10 +318,13 @@ module.exports = async (req, res) => {
         });
       }
 
-      const answer =
-        provider === "gemini"
-          ? await askGemini(prompt)
-          : await askOpenAI(prompt);
+      let answer;
+
+      if (provider === "gemini") {
+        answer = await askGemini(prompt);
+      } else {
+        answer = await askOpenAI(prompt);
+      }
 
       return res.status(200).json({
         success: true,
@@ -255,9 +333,9 @@ module.exports = async (req, res) => {
       });
     }
 
-    /* =========================
+    /* ==================================================
        PROFILE
-    ========================= */
+    ================================================== */
 
     if (route === "profile") {
       const user = await getUser(req);
@@ -265,25 +343,38 @@ module.exports = async (req, res) => {
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: "Authentication required",
+          message:
+            "Authentication required",
         });
       }
 
-      if (req.method === "GET") {
-        const { data, error } =
-          await supabase
-            .from("profiles")
-            .select("*")
-            .eq("user_id", user.id)
-            .maybeSingle();
+      /* =========================
+         GET PROFILE
+      ========================= */
 
-        if (error) throw error;
+      if (req.method === "GET") {
+        const {
+          data,
+          error,
+        } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) {
+          throw error;
+        }
 
         return res.status(200).json({
           success: true,
           profile: data,
         });
       }
+
+      /* =========================
+         UPDATE PROFILE
+      ========================= */
 
       if (
         req.method === "POST" ||
@@ -291,37 +382,48 @@ module.exports = async (req, res) => {
       ) {
         const body = req.body || {};
 
-        const { data, error } =
-          await supabase
-            .from("profiles")
-            .upsert(
-              {
-                ...body,
-                user_id: user.id,
-                email:
-                  body.email || user.email,
-                updated_at:
-                  new Date().toISOString(),
-              },
-              {
-                onConflict: "user_id",
-              }
-            )
-            .select()
-            .single();
+        const {
+          data,
+          error,
+        } = await supabase
+          .from("profiles")
+          .upsert(
+            {
+              ...body,
+              user_id: user.id,
+              email:
+                body.email ||
+                user.email ||
+                null,
+              updated_at:
+                new Date().toISOString(),
+            },
+            {
+              onConflict: "user_id",
+            }
+          )
+          .select()
+          .single();
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return res.status(200).json({
           success: true,
           profile: data,
         });
       }
+
+      return res.status(405).json({
+        success: false,
+        message: "Method not allowed",
+      });
     }
 
-    /* =========================
-       DATABASE TABLES
-    ========================= */
+    /* ==================================================
+       CHECK TABLE
+    ================================================== */
 
     const table = tables[route];
 
@@ -329,24 +431,32 @@ module.exports = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "API route not found",
+        route,
       });
     }
 
-    /* GET */
+    /* ==================================================
+       GET RECORDS
+    ================================================== */
 
     if (req.method === "GET") {
       let query = supabase
         .from(table)
         .select("*");
 
-      if (route === "favorites" ||
-          route === "notifications") {
+      /* USER-SPECIFIC DATA */
+
+      if (
+        route === "favorites" ||
+        route === "notifications"
+      ) {
         const user = await getUser(req);
 
         if (!user) {
           return res.status(401).json({
             success: false,
-            message: "Authentication required",
+            message:
+              "Authentication required",
           });
         }
 
@@ -356,23 +466,36 @@ module.exports = async (req, res) => {
         );
       }
 
+      /* SINGLE RECORD */
+
       if (id) {
         query = query.eq("id", id);
       }
 
-      const { data, error } = await query;
+      const {
+        data,
+        error,
+      } = await query;
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return res.status(200).json(
         responseData(route, data)
       );
     }
 
-    /* POST */
+    /* ==================================================
+       POST RECORD
+    ================================================== */
 
     if (req.method === "POST") {
-      const body = req.body || {};
+      const body = {
+        ...(req.body || {}),
+      };
+
+      /* AUTH REQUIRED FOR MOST TABLES */
 
       if (
         route !== "enquiries" &&
@@ -388,6 +511,8 @@ module.exports = async (req, res) => {
           });
         }
 
+        /* AUTO USER ID */
+
         if (
           route === "favorites" ||
           route === "reviews" ||
@@ -397,14 +522,18 @@ module.exports = async (req, res) => {
         }
       }
 
-      const { data, error } =
-        await supabase
-          .from(table)
-          .insert(body)
-          .select()
-          .single();
+      const {
+        data,
+        error,
+      } = await supabase
+        .from(table)
+        .insert(body)
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return res.status(201).json({
         success: true,
@@ -412,13 +541,16 @@ module.exports = async (req, res) => {
       });
     }
 
-    /* PUT */
+    /* ==================================================
+       PUT RECORD
+    ================================================== */
 
     if (req.method === "PUT") {
       if (!id) {
         return res.status(400).json({
           success: false,
-          message: "Record ID is required",
+          message:
+            "Record ID is required",
         });
       }
 
@@ -427,19 +559,24 @@ module.exports = async (req, res) => {
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: "Authentication required",
+          message:
+            "Authentication required",
         });
       }
 
-      const { data, error } =
-        await supabase
-          .from(table)
-          .update(req.body || {})
-          .eq("id", id)
-          .select()
-          .single();
+      const {
+        data,
+        error,
+      } = await supabase
+        .from(table)
+        .update(req.body || {})
+        .eq("id", id)
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return res.status(200).json({
         success: true,
@@ -447,13 +584,16 @@ module.exports = async (req, res) => {
       });
     }
 
-    /* DELETE */
+    /* ==================================================
+       DELETE RECORD
+    ================================================== */
 
     if (req.method === "DELETE") {
       if (!id) {
         return res.status(400).json({
           success: false,
-          message: "Record ID is required",
+          message:
+            "Record ID is required",
         });
       }
 
@@ -462,36 +602,49 @@ module.exports = async (req, res) => {
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: "Authentication required",
+          message:
+            "Authentication required",
         });
       }
 
-      const { data, error } =
-        await supabase
-          .from(table)
-          .delete()
-          .eq("id", id)
-          .select();
+      const {
+        data,
+        error,
+      } = await supabase
+        .from(table)
+        .delete()
+        .eq("id", id)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return res.status(200).json({
         success: true,
         data,
       });
     }
+
+    /* ==================================================
+       METHOD NOT ALLOWED
+    ================================================== */
 
     return res.status(405).json({
       success: false,
       message: "Method not allowed",
     });
   } catch (error) {
-    console.error(error);
+    console.error(
+      "PROZPO API ERROR:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
       message:
-        error.message || "Server error",
+        error.message ||
+        "Server error",
     });
   }
 };
