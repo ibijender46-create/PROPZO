@@ -1,103 +1,1328 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { getProperties } from "../src/api";
 
 function Plots() {
-  const properties = [
-    {
-      title: "Residential Plot",
-      location: "Greater Noida, Uttar Pradesh",
-      price: "₹45 Lakh",
-      type: "Residential Plot",
-      size: "100 Sq. Yds.",
-    },
-    {
-      title: "Premium Residential Plot",
-      location: "Noida Extension, Uttar Pradesh",
-      price: "₹65 Lakh",
-      type: "Residential Plot",
-      size: "150 Sq. Yds.",
-    },
-    {
-      title: "Corner Residential Plot",
-      location: "Ghaziabad, Uttar Pradesh",
-      price: "₹55 Lakh",
-      type: "Residential Plot",
-      size: "120 Sq. Yds.",
-    },
-    {
-      title: "Farmhouse Plot",
-      location: "Yamuna Expressway, Uttar Pradesh",
-      price: "₹80 Lakh",
-      type: "Farmhouse Plot",
-      size: "200 Sq. Yds.",
-    },
-    {
-      title: "Premium Investment Plot",
-      location: "Jewar, Uttar Pradesh",
-      price: "₹35 Lakh",
-      type: "Investment Plot",
-      size: "100 Sq. Yds.",
-    },
-  ];
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [search, setSearch] = useState("");
+  const [plotType, setPlotType] = useState("All Plot Types");
+  const [budget, setBudget] = useState("Any Budget");
+  const [size, setSize] = useState("Any Size");
+  const [sortBy, setSortBy] = useState("Newest");
+
+  useEffect(() => {
+    let mounted = true;
+
+    getProperties()
+      .then((data) => {
+        if (!mounted) return;
+
+        const list = Array.isArray(data) ? data : [];
+
+        const plotProperties = list.filter((p) => {
+          const type = String(
+            p.property_type || p.type || ""
+          ).toLowerCase();
+
+          const title = String(
+            p.title || ""
+          ).toLowerCase();
+
+          const description = String(
+            p.description || ""
+          ).toLowerCase();
+
+          return (
+            type.includes("plot") ||
+            type.includes("land") ||
+            type.includes("farmhouse") ||
+            title.includes("plot") ||
+            title.includes("land") ||
+            description.includes("plot")
+          );
+        });
+
+        setProperties(
+          plotProperties.map((p) => ({
+            ...p,
+            id: p.id,
+            title:
+              p.title ||
+              "Premium Plot",
+            location:
+              p.location ||
+              "Location not available",
+            price: Number(p.price || 0),
+            type:
+              p.property_type ||
+              p.type ||
+              "Residential Plot",
+            area: Number(
+              p.area ||
+                p.plot_size ||
+                p.size ||
+                0
+            ),
+            description:
+              p.description ||
+              "Premium plot available on PROZPO.",
+            image:
+              p.image_url ||
+              p.image ||
+              p.thumbnail ||
+              "",
+          }))
+        );
+      })
+      .catch((error) => {
+        console.error(
+          "Plot properties error:",
+          error
+        );
+
+        if (mounted) {
+          setProperties([]);
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const formatPrice = (price) => {
+    if (!price) {
+      return "Price on Request";
+    }
+
+    if (price >= 10000000) {
+      return `₹${(
+        price / 10000000
+      ).toFixed(2)} Cr`;
+    }
+
+    if (price >= 100000) {
+      return `₹${(
+        price / 100000
+      ).toFixed(2)} Lakh`;
+    }
+
+    return `₹${Number(
+      price
+    ).toLocaleString("en-IN")}`;
+  };
+
+  const formatArea = (area) => {
+    if (!area) {
+      return "Size on Request";
+    }
+
+    return `${Number(area).toLocaleString(
+      "en-IN"
+    )} Sq.Ft.`;
+  };
+
+  const filteredProperties = useMemo(() => {
+    let result = [...properties];
+
+    const query = search
+      .trim()
+      .toLowerCase();
+
+    if (query) {
+      result = result.filter((property) => {
+        return (
+          property.title
+            ?.toLowerCase()
+            .includes(query) ||
+          property.location
+            ?.toLowerCase()
+            .includes(query) ||
+          property.type
+            ?.toLowerCase()
+            .includes(query)
+        );
+      });
+    }
+
+    if (plotType !== "All Plot Types") {
+      result = result.filter((property) => {
+        const type = String(
+          property.type || ""
+        ).toLowerCase();
+
+        return type.includes(
+          plotType.toLowerCase()
+        );
+      });
+    }
+
+    if (budget !== "Any Budget") {
+      result = result.filter((property) => {
+        const price = Number(
+          property.price || 0
+        );
+
+        if (budget === "Under ₹25 Lakh") {
+          return (
+            price > 0 &&
+            price < 2500000
+          );
+        }
+
+        if (
+          budget ===
+          "₹25 Lakh - ₹50 Lakh"
+        ) {
+          return (
+            price >= 2500000 &&
+            price <= 5000000
+          );
+        }
+
+        if (
+          budget ===
+          "₹50 Lakh - ₹1 Cr"
+        ) {
+          return (
+            price > 5000000 &&
+            price <= 10000000
+          );
+        }
+
+        if (budget === "Above ₹1 Cr") {
+          return price > 10000000;
+        }
+
+        return true;
+      });
+    }
+
+    if (size !== "Any Size") {
+      result = result.filter((property) => {
+        const area = Number(
+          property.area || 0
+        );
+
+        if (size === "Under 1000 Sq.Ft.") {
+          return area > 0 && area < 1000;
+        }
+
+        if (
+          size ===
+          "1000 - 2000 Sq.Ft."
+        ) {
+          return (
+            area >= 1000 &&
+            area <= 2000
+          );
+        }
+
+        if (
+          size ===
+          "2000 - 5000 Sq.Ft."
+        ) {
+          return (
+            area > 2000 &&
+            area <= 5000
+          );
+        }
+
+        if (size === "Above 5000 Sq.Ft.") {
+          return area > 5000;
+        }
+
+        return true;
+      });
+    }
+
+    if (sortBy === "Low to High") {
+      result.sort(
+        (a, b) =>
+          Number(a.price || 0) -
+          Number(b.price || 0)
+      );
+    }
+
+    if (sortBy === "High to Low") {
+      result.sort(
+        (a, b) =>
+          Number(b.price || 0) -
+          Number(a.price || 0)
+      );
+    }
+
+    return result;
+  }, [
+    properties,
+    search,
+    plotType,
+    budget,
+    size,
+    sortBy,
+  ]);
+
+  const clearFilters = () => {
+    setSearch("");
+    setPlotType("All Plot Types");
+    setBudget("Any Budget");
+    setSize("Any Size");
+    setSortBy("Newest");
+  };
+
+  const openProperty = (property) => {
+    if (!property?.id) return;
+
+    window.location.hash =
+      `property/${property.id}`;
+  };
+
+  const enquireProperty = (property) => {
+    if (property?.id) {
+      window.location.hash =
+        `property/${property.id}?enquiry=1`;
+    } else {
+      window.location.hash =
+        "post-property";
+    }
+  };
 
   return (
-    <main>
-      <section className="page-section">
-        <div className="page-header">
-          <span className="badge">PLOTS</span>
+    <main style={styles.page}>
 
-          <h1>
-            Find Your <span>Perfect Plot</span>
-          </h1>
+      {/* HERO */}
+      <section style={styles.hero}>
+        <div style={styles.heroGlow}></div>
 
-          <p>
-            Explore residential, farmhouse and investment plots
-            available at promising locations.
-          </p>
-        </div>
+        <div style={styles.heroInner}>
+          <div>
+            <span style={styles.badge}>
+              PROZPO • PLOTS
+            </span>
 
-        <div className="property-grid">
-          {properties.map((property, index) => (
-            <div className="property-card" key={index}>
-              <div className="property-image">
-                <div className="image-placeholder">
-                  Plot Image
-                </div>
-              </div>
+            <h1 style={styles.title}>
+              Find Your
+              <span style={styles.highlight}>
+                {" "}Perfect Plot
+              </span>
+            </h1>
 
-              <div className="property-info">
-                <span className="property-type">
-                  {property.type}
-                </span>
+            <p style={styles.subtitle}>
+              Explore residential plots, farmhouse
+              land and investment plots at promising
+              locations across India.
+            </p>
+          </div>
 
-                <h2>{property.title}</h2>
-
-                <p className="location">
-                  📍 {property.location}
-                </p>
-
-                <div className="property-details">
-                  <span>📐 {property.size}</span>
-                  <span>🌳 Plot</span>
-                </div>
-
-                <div className="property-bottom">
-                  <strong>{property.price}</strong>
-
-                  <button
-                    onClick={() =>
-                      alert(`Enquiry for ${property.title}`)
-                    }
-                  >
-                    Enquire Now
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+          <div style={styles.heroStat}>
+            <strong>
+              {properties.length}
+            </strong>
+            <span>Plot Listings</span>
+          </div>
         </div>
       </section>
+
+      {/* FILTERS */}
+      <section style={styles.filterWrapper}>
+        <div style={styles.filterBox}>
+
+          <div style={styles.searchField}>
+            <span style={styles.searchIcon}>
+              ⌕
+            </span>
+
+            <div style={styles.fieldContent}>
+              <label>
+                SEARCH LOCATION
+              </label>
+
+              <input
+                type="text"
+                value={search}
+                onChange={(e) =>
+                  setSearch(e.target.value)
+                }
+                placeholder="City, locality or plot location"
+              />
+            </div>
+          </div>
+
+          <div style={styles.divider}></div>
+
+          <div style={styles.filterField}>
+            <label> PLOT TYPE </label>
+
+            <select
+              value={plotType}
+              onChange={(e) =>
+                setPlotType(e.target.value)
+              }
+            >
+              <option>All Plot Types</option>
+              <option>
+                Residential Plot
+              </option>
+              <option>
+                Farmhouse Plot
+              </option>
+              <option>
+                Investment Plot
+              </option>
+              <option>
+                Commercial Plot
+              </option>
+              <option>Corner Plot</option>
+            </select>
+          </div>
+
+          <div style={styles.divider}></div>
+
+          <div style={styles.filterField}>
+            <label>BUDGET</label>
+
+            <select
+              value={budget}
+              onChange={(e) =>
+                setBudget(e.target.value)
+              }
+            >
+              <option>Any Budget</option>
+              <option>
+                Under ₹25 Lakh
+              </option>
+              <option>
+                ₹25 Lakh - ₹50 Lakh
+              </option>
+              <option>
+                ₹50 Lakh - ₹1 Cr
+              </option>
+              <option>
+                Above ₹1 Cr
+              </option>
+            </select>
+          </div>
+
+          <div style={styles.divider}></div>
+
+          <div style={styles.filterField}>
+            <label>PLOT SIZE</label>
+
+            <select
+              value={size}
+              onChange={(e) =>
+                setSize(e.target.value)
+              }
+            >
+              <option>Any Size</option>
+              <option>
+                Under 1000 Sq.Ft.
+              </option>
+              <option>
+                1000 - 2000 Sq.Ft.
+              </option>
+              <option>
+                2000 - 5000 Sq.Ft.
+              </option>
+              <option>
+                Above 5000 Sq.Ft.
+              </option>
+            </select>
+          </div>
+
+        </div>
+      </section>
+
+      {/* RESULTS */}
+      <section style={styles.content}>
+
+        <div style={styles.resultHeader}>
+          <div>
+            <span style={styles.eyebrow}>
+              PLOT LISTINGS
+            </span>
+
+            <h2 style={styles.resultTitle}>
+              Plots For Sale
+            </h2>
+
+            <p style={styles.resultText}>
+              {loading
+                ? "Loading available plots..."
+                : `${filteredProperties.length} plots matching your search`}
+            </p>
+          </div>
+
+          <div style={styles.actions}>
+            <button
+              onClick={clearFilters}
+              style={styles.clearButton}
+            >
+              Clear Filters
+            </button>
+
+            <select
+              value={sortBy}
+              onChange={(e) =>
+                setSortBy(e.target.value)
+              }
+              style={styles.sort}
+            >
+              <option>Newest</option>
+              <option>
+                Low to High
+              </option>
+              <option>
+                High to Low
+              </option>
+            </select>
+          </div>
+        </div>
+
+        {/* LOADING */}
+        {loading && (
+          <div style={styles.grid}>
+            {[1, 2, 3, 4, 5, 6].map(
+              (item) => (
+                <div
+                  key={item}
+                  style={styles.skeleton}
+                >
+                  <div
+                    style={
+                      styles.skeletonImage
+                    }
+                  ></div>
+
+                  <div
+                    style={
+                      styles.skeletonLine
+                    }
+                  ></div>
+
+                  <div
+                    style={{
+                      ...styles.skeletonLine,
+                      width: "65%",
+                    }}
+                  ></div>
+
+                  <div
+                    style={{
+                      ...styles.skeletonLine,
+                      width: "45%",
+                    }}
+                  ></div>
+                </div>
+              )
+            )}
+          </div>
+        )}
+
+        {/* EMPTY */}
+        {!loading &&
+          filteredProperties.length ===
+            0 && (
+            <div style={styles.empty}>
+              <div style={styles.emptyIcon}>
+                📍
+              </div>
+
+              <h3>
+                No plots found
+              </h3>
+
+              <p>
+                Try changing your location,
+                plot type, size or budget.
+              </p>
+
+              <button
+                onClick={clearFilters}
+                style={
+                  styles.emptyButton
+                }
+              >
+                Clear Filters
+              </button>
+            </div>
+          )}
+
+        {/* GRID */}
+        {!loading &&
+          filteredProperties.length > 0 && (
+            <div style={styles.grid}>
+
+              {filteredProperties.map(
+                (property) => (
+                  <article
+                    key={
+                      property.id ||
+                      property.title
+                    }
+                    style={styles.card}
+                  >
+
+                    {/* IMAGE */}
+                    <div
+                      style={{
+                        ...styles.image,
+                        ...(property.image
+                          ? {
+                              backgroundImage:
+                                `url(${property.image})`,
+                            }
+                          : {}),
+                      }}
+                    >
+
+                      {!property.image && (
+                        <div
+                          style={
+                            styles.placeholder
+                          }
+                        >
+                          <span>🌳</span>
+                          <strong>
+                            PROZPO
+                          </strong>
+                        </div>
+                      )}
+
+                      <div
+                        style={
+                          styles.imageOverlay
+                        }
+                      ></div>
+
+                      <span
+                        style={
+                          styles.verified
+                        }
+                      >
+                        ✓ Verified
+                      </span>
+
+                      <button
+                        onClick={(e) =>
+                          e.stopPropagation()
+                        }
+                        style={
+                          styles.favorite
+                        }
+                      >
+                        ♡
+                      </button>
+
+                      <span
+                        style={
+                          styles.plotTag
+                        }
+                      >
+                        PLOT FOR SALE
+                      </span>
+                    </div>
+
+                    {/* CONTENT */}
+                    <div
+                      style={
+                        styles.cardContent
+                      }
+                    >
+
+                      <div
+                        style={
+                          styles.typeRow
+                        }
+                      >
+                        <span
+                          style={styles.type}
+                        >
+                          {property.type}
+                        </span>
+
+                        <span
+                          style={
+                            styles.verifiedText
+                          }
+                        >
+                          Verified Listing
+                        </span>
+                      </div>
+
+                      <h3
+                        style={
+                          styles.cardTitle
+                        }
+                      >
+                        {property.title}
+                      </h3>
+
+                      <p
+                        style={
+                          styles.location
+                        }
+                      >
+                        📍{" "}
+                        {property.location}
+                      </p>
+
+                      <div
+                        style={
+                          styles.details
+                        }
+                      >
+                        <span>
+                          📐{" "}
+                          {formatArea(
+                            property.area
+                          )}
+                        </span>
+
+                        <span>
+                          🌳 Land / Plot
+                        </span>
+                      </div>
+
+                      <div
+                        style={
+                          styles.bottom
+                        }
+                      >
+                        <div>
+                          <span
+                            style={
+                              styles.priceLabel
+                            }
+                          >
+                            PLOT PRICE
+                          </span>
+
+                          <strong
+                            style={
+                              styles.price
+                            }
+                          >
+                            {formatPrice(
+                              property.price
+                            )}
+                          </strong>
+                        </div>
+
+                        <button
+                          onClick={() =>
+                            enquireProperty(
+                              property
+                            )
+                          }
+                          style={
+                            styles.enquire
+                          }
+                        >
+                          Enquire
+                          <span>→</span>
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() =>
+                          openProperty(
+                            property
+                          )
+                        }
+                        style={
+                          styles.detailsButton
+                        }
+                      >
+                        View Full Plot Details
+                      </button>
+
+                    </div>
+                  </article>
+                )
+              )}
+
+            </div>
+          )}
+      </section>
+
+      {/* CTA */}
+      <section style={styles.ctaSection}>
+        <div style={styles.cta}>
+
+          <div>
+            <span
+              style={styles.ctaEyebrow}
+            >
+              HAVE A PLOT TO SELL?
+            </span>
+
+            <h2>
+              List Your Plot on PROZPO
+            </h2>
+
+            <p>
+              Reach genuine buyers looking
+              for residential, farmhouse
+              and investment plots.
+            </p>
+          </div>
+
+          <button
+            onClick={() =>
+              (window.location.hash =
+                "post-property")
+            }
+            style={styles.ctaButton}
+          >
+            Post Your Plot
+            <span>→</span>
+          </button>
+
+        </div>
+      </section>
+
+      <style>{`
+        @media (max-width: 1100px) {
+          .prozpo-plots-filter {
+            grid-template-columns: 1.5fr 1fr 1fr !important;
+          }
+
+          .prozpo-plots-divider {
+            display: none !important;
+          }
+
+          .prozpo-plots-grid {
+            grid-template-columns: repeat(2,1fr) !important;
+          }
+        }
+
+        @media (max-width: 700px) {
+          .prozpo-plots-hero {
+            padding: 45px 18px 90px !important;
+          }
+
+          .prozpo-plots-inner {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+
+          .prozpo-plots-title {
+            font-size: 42px !important;
+          }
+
+          .prozpo-plots-filter {
+            grid-template-columns: 1fr !important;
+          }
+
+          .prozpo-plots-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .prozpo-plots-result {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+
+          .prozpo-plots-actions {
+            width: 100% !important;
+          }
+
+          .prozpo-plots-cta {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            padding: 30px 24px !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    background: "#f7f9fc",
+    color: "#172033",
+    fontFamily:
+      "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  },
+
+  hero: {
+    position: "relative",
+    overflow: "hidden",
+    background:
+      "linear-gradient(135deg,#07152f 0%,#0c2d5d 60%,#1769d2 100%)",
+    padding: "70px 24px 105px",
+  },
+
+  heroGlow: {
+    position: "absolute",
+    width: "440px",
+    height: "440px",
+    right: "-160px",
+    top: "-220px",
+    borderRadius: "50%",
+    background:
+      "rgba(70,210,255,.14)",
+    filter: "blur(25px)",
+  },
+
+  heroInner: {
+    position: "relative",
+    zIndex: 2,
+    maxWidth: "1200px",
+    margin: "0 auto",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: "30px",
+  },
+
+  badge: {
+    display: "inline-block",
+    padding: "8px 13px",
+    borderRadius: "20px",
+    background:
+      "rgba(255,255,255,.1)",
+    border:
+      "1px solid rgba(255,255,255,.15)",
+    color: "#cce7ff",
+    fontSize: "10px",
+    fontWeight: 900,
+    letterSpacing: "1.4px",
+  },
+
+  title: {
+    margin: "20px 0 13px",
+    color: "#ffffff",
+    fontSize: "56px",
+    lineHeight: 1.05,
+    letterSpacing: "-2px",
+  },
+
+  highlight: {
+    color: "#5ed5b2",
+  },
+
+  subtitle: {
+    margin: 0,
+    maxWidth: "700px",
+    color: "#c6d7eb",
+    fontSize: "16px",
+    lineHeight: 1.65,
+  },
+
+  heroStat: {
+    minWidth: "165px",
+    padding: "18px 22px",
+    borderRadius: "17px",
+    background:
+      "rgba(255,255,255,.1)",
+    border:
+      "1px solid rgba(255,255,255,.14)",
+    color: "#ffffff",
+    textAlign: "center",
+  },
+
+  filterWrapper: {
+    position: "relative",
+    zIndex: 5,
+    maxWidth: "1180px",
+    margin: "-48px auto 0",
+    padding: "0 20px",
+  },
+
+  filterBox: {
+    display: "grid",
+    gridTemplateColumns:
+      "1.5fr 1px 1fr 1px 1fr 1px 1fr",
+    alignItems: "center",
+    gap: "14px",
+    padding: "10px",
+    background: "#ffffff",
+    border:
+      "1px solid #e5eaf0",
+    borderRadius: "18px",
+    boxShadow:
+      "0 20px 55px rgba(12,35,65,.14)",
+  },
+
+  searchField: {
+    display: "flex",
+    alignItems: "center",
+    gap: "11px",
+    padding: "7px 10px",
+  },
+
+  searchIcon: {
+    width: "39px",
+    height: "39px",
+    display: "grid",
+    placeItems: "center",
+    borderRadius: "11px",
+    background: "#edf5ff",
+    color: "#1769d2",
+    fontSize: "23px",
+  },
+
+  fieldContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  divider: {
+    width: "1px",
+    height: "42px",
+    background: "#e5eaf0",
+  },
+
+  filterField: {
+    minWidth: 0,
+    padding: "5px 7px",
+  },
+
+  content: {
+    maxWidth: "1200px",
+    margin: "0 auto",
+    padding: "75px 24px 80px",
+  },
+
+  resultHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: "30px",
+    marginBottom: "30px",
+  },
+
+  eyebrow: {
+    display: "block",
+    color: "#1769d2",
+    fontSize: "10px",
+    fontWeight: 900,
+    letterSpacing: "1.5px",
+    marginBottom: "7px",
+  },
+
+  resultTitle: {
+    margin: 0,
+    fontSize: "32px",
+    letterSpacing: "-.8px",
+  },
+
+  resultText: {
+    margin: "7px 0 0",
+    color: "#778294",
+    fontSize: "13px",
+  },
+
+  actions: {
+    display: "flex",
+    gap: "9px",
+    alignItems: "center",
+  },
+
+  clearButton: {
+    border:
+      "1px solid #dfe5ec",
+    background: "#ffffff",
+    color: "#667285",
+    borderRadius: "10px",
+    padding: "11px 14px",
+    fontSize: "12px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+
+  sort: {
+    border:
+      "1px solid #dfe5ec",
+    background: "#ffffff",
+    color: "#334056",
+    borderRadius: "10px",
+    padding: "11px 13px",
+    fontSize: "12px",
+    fontWeight: 700,
+    outline: "none",
+  },
+
+  grid: {
+    display: "grid",
+    gridTemplateColumns:
+      "repeat(3,1fr)",
+    gap: "22px",
+  },
+
+  card: {
+    background: "#ffffff",
+    border:
+      "1px solid #e7ebf0",
+    borderRadius: "18px",
+    overflow: "hidden",
+    transition: "all .25s ease",
+    boxShadow:
+      "0 7px 25px rgba(17,35,55,.045)",
+  },
+
+  image: {
+    position: "relative",
+    height: "225px",
+    backgroundColor: "#dceaf7",
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    overflow: "hidden",
+  },
+
+  placeholder: {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    background:
+      "linear-gradient(135deg,#d9eafa,#eef6fc)",
+    color: "#1769d2",
+    fontSize: "16px",
+  },
+
+  imageOverlay: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "linear-gradient(to top,rgba(5,20,40,.55),transparent 55%)",
+  },
+
+  verified: {
+    position: "absolute",
+    top: "13px",
+    left: "13px",
+    zIndex: 2,
+    padding: "7px 10px",
+    borderRadius: "20px",
+    background: "#ffffff",
+    color: "#0a9669",
+    fontSize: "10px",
+    fontWeight: 850,
+  },
+
+  favorite: {
+    position: "absolute",
+    top: "12px",
+    right: "12px",
+    zIndex: 2,
+    width: "37px",
+    height: "37px",
+    borderRadius: "50%",
+    border: "none",
+    background: "#ffffff",
+    color: "#445269",
+    fontSize: "20px",
+    cursor: "pointer",
+  },
+
+  plotTag: {
+    position: "absolute",
+    left: "13px",
+    bottom: "13px",
+    zIndex: 2,
+    color: "#ffffff",
+    fontSize: "10px",
+    fontWeight: 900,
+    letterSpacing: "1px",
+  },
+
+  cardContent: {
+    padding: "18px",
+  },
+
+  typeRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "8px",
+  },
+
+  type: {
+    color: "#1769d2",
+    fontSize: "10px",
+    fontWeight: 900,
+    textTransform: "uppercase",
+  },
+
+  verifiedText: {
+    color: "#0b9b6c",
+    fontSize: "9px",
+    fontWeight: 800,
+  },
+
+  cardTitle: {
+    margin: "9px 0 7px",
+    fontSize: "18px",
+    lineHeight: 1.3,
+  },
+
+  location: {
+    margin: 0,
+    color: "#727e90",
+    fontSize: "12px",
+  },
+
+  details: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "7px",
+    marginTop: "16px",
+    paddingTop: "14px",
+    borderTop:
+      "1px solid #edf0f4",
+  },
+
+  bottom: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: "10px",
+    marginTop: "17px",
+  },
+
+  priceLabel: {
+    display: "block",
+    color: "#8b95a4",
+    fontSize: "9px",
+    fontWeight: 800,
+    marginBottom: "3px",
+  },
+
+  price: {
+    color: "#172033",
+    fontSize: "19px",
+  },
+
+  enquire: {
+    border: "none",
+    borderRadius: "9px",
+    padding: "10px 12px",
+    background: "#edf5ff",
+    color: "#1769d2",
+    fontSize: "11px",
+    fontWeight: 850,
+    cursor: "pointer",
+  },
+
+  detailsButton: {
+    width: "100%",
+    marginTop: "12px",
+    padding: "10px",
+    borderRadius: "9px",
+    border:
+      "1px solid #dfe7ef",
+    background: "#ffffff",
+    color: "#334056",
+    fontSize: "11px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
+  skeleton: {
+    height: "390px",
+    padding: "15px",
+    borderRadius: "18px",
+    background: "#ffffff",
+    border:
+      "1px solid #e7ebf0",
+  },
+
+  skeletonImage: {
+    height: "220px",
+    borderRadius: "13px",
+    background: "#eef1f5",
+  },
+
+  skeletonLine: {
+    width: "80%",
+    height: "13px",
+    marginTop: "18px",
+    borderRadius: "8px",
+    background: "#eef1f5",
+  },
+
+  empty: {
+    textAlign: "center",
+    background: "#ffffff",
+    border:
+      "1px solid #e7ebf0",
+    borderRadius: "20px",
+    padding: "65px 20px",
+  },
+
+  emptyIcon: {
+    width: "65px",
+    height: "65px",
+    margin: "0 auto 18px",
+    display: "grid",
+    placeItems: "center",
+    borderRadius: "20px",
+    background: "#edf5ff",
+    fontSize: "27px",
+  },
+
+  emptyButton: {
+    border: "none",
+    background: "#1769d2",
+    color: "#ffffff",
+    padding: "11px 18px",
+    borderRadius: "10px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
+  ctaSection: {
+    padding: "0 24px 80px",
+  },
+
+  cta: {
+    maxWidth: "1150px",
+    margin: "0 auto",
+    padding: "38px 42px",
+    borderRadius: "22px",
+    background:
+      "linear-gradient(135deg,#092650,#1769d2)",
+    color: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "30px",
+  },
+
+  ctaEyebrow: {
+    color: "#b9ddff",
+    fontSize: "10px",
+    fontWeight: 900,
+    letterSpacing: "1.4px",
+  },
+
+  ctaButton: {
+    border: "none",
+    borderRadius: "11px",
+    padding: "14px 20px",
+    background: "#ffffff",
+    color: "#1769d2",
+    fontWeight: 850,
+    fontSize: "12px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+  },
+};
 
 export default Plots;
