@@ -17,14 +17,22 @@ async function request(endpoint, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    method: options.method || "GET",
-    headers,
-    body:
-      options.body !== undefined
-        ? JSON.stringify(options.body)
-        : undefined,
-  });
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      method: options.method || "GET",
+      headers,
+      body:
+        options.body !== undefined
+          ? JSON.stringify(options.body)
+          : undefined,
+    });
+  } catch (error) {
+    throw new Error(
+      error?.message || "Unable to connect to PROZPO server"
+    );
+  }
 
   let result = {};
 
@@ -36,7 +44,9 @@ async function request(endpoint, options = {}) {
 
   if (!response.ok || result.success === false) {
     throw new Error(
-      result.message || "API request failed"
+      result.message ||
+        result.error ||
+        "API request failed"
     );
   }
 
@@ -111,6 +121,15 @@ export function logoutUser() {
    GENERIC CRUD
 ========================= */
 
+function extractData(result, resource) {
+  return (
+    result?.data ??
+    result?.[resource] ??
+    result?.[resource?.replace("-", "_")] ??
+    result
+  );
+}
+
 export async function getRecords(
   resource,
   id = null
@@ -121,12 +140,7 @@ export async function getRecords(
 
   const result = await request(endpoint);
 
-  return (
-    result.data ||
-    result[resource] ||
-    result[resource.replace("-", "_")] ||
-    []
-  );
+  return extractData(result, resource);
 }
 
 export async function createRecord(
@@ -138,12 +152,7 @@ export async function createRecord(
     body: data,
   });
 
-  return (
-    result.data ||
-    result[resource] ||
-    result[resource.replace("-", "_")] ||
-    result
-  );
+  return extractData(result, resource);
 }
 
 export async function updateRecord(
@@ -159,26 +168,19 @@ export async function updateRecord(
     }
   );
 
-  return (
-    result.data ||
-    result[resource] ||
-    result[resource.replace("-", "_")] ||
-    result
-  );
+  return extractData(result, resource);
 }
 
 export async function deleteRecord(
   resource,
   id
 ) {
-  const result = await request(
+  return request(
     `/${resource}?id=${encodeURIComponent(id)}`,
     {
       method: "DELETE",
     }
   );
-
-  return result;
 }
 
 /* =========================
@@ -325,6 +327,11 @@ export async function createFavorite(data) {
   return createRecord("favorites", data);
 }
 
+/* Compatibility helper */
+export async function addFavorite(data) {
+  return createFavorite(data);
+}
+
 export async function deleteFavorite(id) {
   return deleteRecord("favorites", id);
 }
@@ -451,7 +458,7 @@ export async function getProfile() {
 
 export async function saveProfile(data) {
   const result = await request("/profile", {
-    method: "POST",
+    method: "PUT",
     body: data,
   });
 
@@ -564,4 +571,4 @@ export async function askOpenAI(prompt) {
 
 export async function askGemini(prompt) {
   return askAI(prompt, "gemini");
-                            }
+}
