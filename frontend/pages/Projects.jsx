@@ -1,124 +1,1311 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { getProjects } from "../src/api";
 
 function Projects() {
-  const projects = [
-    {
-      title: "Premium Heights",
-      location: "Noida, Uttar Pradesh",
-      price: "₹75 Lakh Onwards",
-      type: "Residential Project",
-      units: "2 & 3 BHK"
-    },
-    {
-      title: "Green Valley Residency",
-      location: "Greater Noida, Uttar Pradesh",
-      price: "₹55 Lakh Onwards",
-      type: "Residential Project",
-      units: "2 & 3 BHK"
-    },
-    {
-      title: "Urban Square",
-      location: "Gurugram, Haryana",
-      price: "₹1.10 Cr Onwards",
-      type: "Residential Project",
-      units: "3 & 4 BHK"
-    },
-    {
-      title: "Royal Garden City",
-      location: "Ghaziabad, Uttar Pradesh",
-      price: "₹45 Lakh Onwards",
-      type: "Residential Project",
-      units: "2 & 3 BHK"
-    },
-    {
-      title: "Yamuna Greens",
-      location: "Yamuna Expressway",
-      price: "₹38 Lakh Onwards",
-      type: "Residential Project",
-      units: "2 & 3 BHK"
-    },
-    {
-      title: "Skyline Business Hub",
-      location: "Noida, Uttar Pradesh",
-      price: "₹90 Lakh Onwards",
-      type: "Commercial Project",
-      units: "Shops & Offices"
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [search, setSearch] = useState("");
+  const [projectType, setProjectType] = useState(
+    "All Project Types"
+  );
+  const [budget, setBudget] = useState("Any Budget");
+  const [sortBy, setSortBy] = useState("Newest");
+
+  useEffect(() => {
+    let mounted = true;
+
+    getProjects()
+      .then((data) => {
+        if (!mounted) return;
+
+        const list = Array.isArray(data) ? data : [];
+
+        setProjects(
+          list.map((p) => ({
+            ...p,
+            id: p.id,
+            title:
+              p.title ||
+              p.project_name ||
+              "Premium Project",
+            location:
+              p.location ||
+              "Location not available",
+            price: Number(
+              p.price ||
+                p.starting_price ||
+                0
+            ),
+            type:
+              p.project_type ||
+              p.type ||
+              "Residential Project",
+            units:
+              p.units ||
+              p.unit_type ||
+              p.configuration ||
+              "Multiple Options",
+            description:
+              p.description ||
+              "Premium project available on PROZPO.",
+            image:
+              p.image_url ||
+              p.image ||
+              p.thumbnail ||
+              "",
+          }))
+        );
+      })
+      .catch((error) => {
+        console.error(
+          "Projects loading error:",
+          error
+        );
+
+        if (mounted) {
+          setProjects([]);
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const formatPrice = (price) => {
+    if (!price) {
+      return "Price on Request";
     }
-  ];
+
+    if (price >= 10000000) {
+      return `₹${(
+        price / 10000000
+      ).toFixed(2)} Cr Onwards`;
+    }
+
+    if (price >= 100000) {
+      return `₹${(
+        price / 100000
+      ).toFixed(2)} Lakh Onwards`;
+    }
+
+    return `₹${Number(
+      price
+    ).toLocaleString("en-IN")} Onwards`;
+  };
+
+  const filteredProjects = useMemo(() => {
+    let result = [...projects];
+
+    const query = search
+      .trim()
+      .toLowerCase();
+
+    if (query) {
+      result = result.filter((project) => {
+        return (
+          project.title
+            ?.toLowerCase()
+            .includes(query) ||
+          project.location
+            ?.toLowerCase()
+            .includes(query) ||
+          project.type
+            ?.toLowerCase()
+            .includes(query) ||
+          project.units
+            ?.toLowerCase()
+            .includes(query)
+        );
+      });
+    }
+
+    if (
+      projectType !==
+      "All Project Types"
+    ) {
+      result = result.filter((project) => {
+        const type = String(
+          project.type || ""
+        ).toLowerCase();
+
+        return type.includes(
+          projectType.toLowerCase()
+        );
+      });
+    }
+
+    if (budget !== "Any Budget") {
+      result = result.filter((project) => {
+        const price = Number(
+          project.price || 0
+        );
+
+        if (budget === "Under ₹50 Lakh") {
+          return (
+            price > 0 &&
+            price < 5000000
+          );
+        }
+
+        if (
+          budget ===
+          "₹50 Lakh - ₹1 Cr"
+        ) {
+          return (
+            price >= 5000000 &&
+            price <= 10000000
+          );
+        }
+
+        if (
+          budget ===
+          "₹1 Cr - ₹2 Cr"
+        ) {
+          return (
+            price > 10000000 &&
+            price <= 20000000
+          );
+        }
+
+        if (
+          budget === "Above ₹2 Cr"
+        ) {
+          return price > 20000000;
+        }
+
+        return true;
+      });
+    }
+
+    if (sortBy === "Low to High") {
+      result.sort(
+        (a, b) =>
+          Number(a.price || 0) -
+          Number(b.price || 0)
+      );
+    }
+
+    if (sortBy === "High to Low") {
+      result.sort(
+        (a, b) =>
+          Number(b.price || 0) -
+          Number(a.price || 0)
+      );
+    }
+
+    return result;
+  }, [
+    projects,
+    search,
+    projectType,
+    budget,
+    sortBy,
+  ]);
+
+  const clearFilters = () => {
+    setSearch("");
+    setProjectType(
+      "All Project Types"
+    );
+    setBudget("Any Budget");
+    setSortBy("Newest");
+  };
+
+  const openProject = (project) => {
+    if (!project?.id) return;
+
+    window.location.hash =
+      `project/${project.id}`;
+  };
+
+  const enquireProject = (project) => {
+    if (project?.id) {
+      window.location.hash =
+        `project/${project.id}?enquiry=1`;
+    } else {
+      window.location.hash =
+        "post-property";
+    }
+  };
 
   return (
-    <main className="page">
+    <main style={styles.page}>
 
-      <section className="page-hero">
-        <span className="badge">PROJECTS</span>
+      {/* HERO */}
+      <section style={styles.hero}>
+        <div style={styles.heroGlow}></div>
 
-        <h1>Explore Premium Projects</h1>
+        <div style={styles.heroInner}>
+          <div>
+            <span style={styles.badge}>
+              PROZPO • PROJECTS
+            </span>
 
-        <p>
-          Discover residential and commercial projects in
-          high-growth locations.
-        </p>
+            <h1 style={styles.title}>
+              Explore
+              <span style={styles.highlight}>
+                {" "}Premium Projects
+              </span>
+            </h1>
+
+            <p style={styles.subtitle}>
+              Discover residential and commercial
+              projects in high-growth locations
+              across India.
+            </p>
+          </div>
+
+          <div style={styles.heroStat}>
+            <strong>
+              {projects.length}
+            </strong>
+
+            <span>
+              Listed Projects
+            </span>
+          </div>
+        </div>
       </section>
 
-      <section className="property-section">
+      {/* SEARCH / FILTERS */}
+      <section style={styles.filterWrapper}>
+        <div style={styles.filterBox}>
 
-        <div className="section-heading">
-          <h2>Featured Projects</h2>
+          <div style={styles.searchField}>
+            <span style={styles.searchIcon}>
+              ⌕
+            </span>
 
-          <p>
-            Find the right project for your home or investment.
-          </p>
+            <div style={styles.fieldContent}>
+              <label>
+                SEARCH PROJECT
+              </label>
+
+              <input
+                type="text"
+                value={search}
+                onChange={(e) =>
+                  setSearch(e.target.value)
+                }
+                placeholder="Project, city or location"
+              />
+            </div>
+          </div>
+
+          <div style={styles.divider}></div>
+
+          <div style={styles.filterField}>
+            <label>
+              PROJECT TYPE
+            </label>
+
+            <select
+              value={projectType}
+              onChange={(e) =>
+                setProjectType(
+                  e.target.value
+                )
+              }
+            >
+              <option>
+                All Project Types
+              </option>
+
+              <option>
+                Residential Project
+              </option>
+
+              <option>
+                Commercial Project
+              </option>
+
+              <option>
+                Plotted Development
+              </option>
+
+              <option>
+                Villa Project
+              </option>
+            </select>
+          </div>
+
+          <div style={styles.divider}></div>
+
+          <div style={styles.filterField}>
+            <label>
+              STARTING PRICE
+            </label>
+
+            <select
+              value={budget}
+              onChange={(e) =>
+                setBudget(e.target.value)
+              }
+            >
+              <option>
+                Any Budget
+              </option>
+
+              <option>
+                Under ₹50 Lakh
+              </option>
+
+              <option>
+                ₹50 Lakh - ₹1 Cr
+              </option>
+
+              <option>
+                ₹1 Cr - ₹2 Cr
+              </option>
+
+              <option>
+                Above ₹2 Cr
+              </option>
+            </select>
+          </div>
+
+          <button
+            onClick={() => {}}
+            style={styles.searchButton}
+          >
+            Search
+          </button>
+
+        </div>
+      </section>
+
+      {/* PROJECT RESULTS */}
+      <section style={styles.content}>
+
+        <div style={styles.resultHeader}>
+          <div>
+            <span style={styles.eyebrow}>
+              PROJECT DIRECTORY
+            </span>
+
+            <h2 style={styles.resultTitle}>
+              Featured Projects
+            </h2>
+
+            <p style={styles.resultText}>
+              {loading
+                ? "Loading projects..."
+                : `${filteredProjects.length} projects matching your search`}
+            </p>
+          </div>
+
+          <div style={styles.actions}>
+
+            <button
+              onClick={clearFilters}
+              style={styles.clearButton}
+            >
+              Clear Filters
+            </button>
+
+            <select
+              value={sortBy}
+              onChange={(e) =>
+                setSortBy(e.target.value)
+              }
+              style={styles.sort}
+            >
+              <option>
+                Newest
+              </option>
+
+              <option>
+                Low to High
+              </option>
+
+              <option>
+                High to Low
+              </option>
+            </select>
+
+          </div>
         </div>
 
-        <div className="property-grid">
-
-          {projects.map((project, index) => (
-
-            <div className="property-card" key={index}>
-
-              <div className="property-image">
-                <span>Project</span>
-              </div>
-
-              <div className="property-content">
-
-                <h3>{project.title}</h3>
-
-                <p className="location">
-                  📍 {project.location}
-                </p>
-
-                <div className="property-details">
-                  <span>{project.type}</span>
-                  <span>{project.units}</span>
-                </div>
-
-                <div className="property-bottom">
-
-                  <strong>{project.price}</strong>
-
-                  <button
-                    onClick={() =>
-                      alert(`Enquiry for ${project.title}`)
+        {/* LOADING */}
+        {loading && (
+          <div style={styles.grid}>
+            {[1, 2, 3, 4, 5, 6].map(
+              (item) => (
+                <div
+                  key={item}
+                  style={styles.skeleton}
+                >
+                  <div
+                    style={
+                      styles.skeletonImage
                     }
-                  >
-                    Enquire
-                  </button>
+                  ></div>
 
+                  <div
+                    style={
+                      styles.skeletonLine
+                    }
+                  ></div>
+
+                  <div
+                    style={{
+                      ...styles.skeletonLine,
+                      width: "65%",
+                    }}
+                  ></div>
+
+                  <div
+                    style={{
+                      ...styles.skeletonLine,
+                      width: "45%",
+                    }}
+                  ></div>
                 </div>
+              )
+            )}
+          </div>
+        )}
 
+        {/* EMPTY */}
+        {!loading &&
+          filteredProjects.length ===
+            0 && (
+            <div style={styles.empty}>
+              <div style={styles.emptyIcon}>
+                🏙️
               </div>
+
+              <h3>
+                No projects found
+              </h3>
+
+              <p>
+                Try changing your search,
+                project type or budget.
+              </p>
+
+              <button
+                onClick={clearFilters}
+                style={
+                  styles.emptyButton
+                }
+              >
+                Clear Filters
+              </button>
+            </div>
+          )}
+
+        {/* PROJECT GRID */}
+        {!loading &&
+          filteredProjects.length > 0 && (
+            <div style={styles.grid}>
+
+              {filteredProjects.map(
+                (project) => (
+                  <article
+                    key={
+                      project.id ||
+                      project.title
+                    }
+                    style={styles.card}
+                  >
+
+                    {/* PROJECT IMAGE */}
+                    <div
+                      style={{
+                        ...styles.image,
+                        ...(project.image
+                          ? {
+                              backgroundImage:
+                                `url(${project.image})`,
+                            }
+                          : {}),
+                      }}
+                    >
+
+                      {!project.image && (
+                        <div
+                          style={
+                            styles.placeholder
+                          }
+                        >
+                          <span>🏙️</span>
+
+                          <strong>
+                            PROZPO
+                          </strong>
+
+                          <small>
+                            PROJECT
+                          </small>
+                        </div>
+                      )}
+
+                      <div
+                        style={
+                          styles.imageOverlay
+                        }
+                      ></div>
+
+                      <span
+                        style={
+                          styles.verified
+                        }
+                      >
+                        ✓ Verified Project
+                      </span>
+
+                      <button
+                        onClick={(e) =>
+                          e.stopPropagation()
+                        }
+                        style={
+                          styles.favorite
+                        }
+                      >
+                        ♡
+                      </button>
+
+                      <span
+                        style={
+                          styles.projectTag
+                        }
+                      >
+                        FEATURED
+                      </span>
+
+                    </div>
+
+                    {/* CONTENT */}
+                    <div
+                      style={
+                        styles.cardContent
+                      }
+                    >
+
+                      <div
+                        style={
+                          styles.typeRow
+                        }
+                      >
+
+                        <span
+                          style={styles.type}
+                        >
+                          {project.type}
+                        </span>
+
+                        <span
+                          style={
+                            styles.verifiedText
+                          }
+                        >
+                          Verified
+                        </span>
+
+                      </div>
+
+                      <h3
+                        style={
+                          styles.cardTitle
+                        }
+                      >
+                        {project.title}
+                      </h3>
+
+                      <p
+                        style={
+                          styles.location
+                        }
+                      >
+                        📍{" "}
+                        {project.location}
+                      </p>
+
+                      <div
+                        style={
+                          styles.details
+                        }
+                      >
+                        <span>
+                          🏠{" "}
+                          {project.units}
+                        </span>
+
+                        <span>
+                          ✓ RERA / Approval
+                        </span>
+                      </div>
+
+                      <div
+                        style={
+                          styles.bottom
+                        }
+                      >
+
+                        <div>
+                          <span
+                            style={
+                              styles.priceLabel
+                            }
+                          >
+                            STARTING PRICE
+                          </span>
+
+                          <strong
+                            style={
+                              styles.price
+                            }
+                          >
+                            {formatPrice(
+                              project.price
+                            )}
+                          </strong>
+                        </div>
+
+                        <button
+                          onClick={() =>
+                            enquireProject(
+                              project
+                            )
+                          }
+                          style={
+                            styles.enquire
+                          }
+                        >
+                          Enquire
+                          <span>→</span>
+                        </button>
+
+                      </div>
+
+                      <button
+                        onClick={() =>
+                          openProject(
+                            project
+                          )
+                        }
+                        style={
+                          styles.detailsButton
+                        }
+                      >
+                        View Project Details
+                      </button>
+
+                    </div>
+
+                  </article>
+                )
+              )}
 
             </div>
-
-          ))}
-
-        </div>
+          )}
 
       </section>
+
+      {/* PROJECT CTA */}
+      <section style={styles.ctaSection}>
+        <div style={styles.cta}>
+
+          <div>
+            <span
+              style={
+                styles.ctaEyebrow
+              }
+            >
+              BUILDERS & DEVELOPERS
+            </span>
+
+            <h2>
+              Want to List Your Project?
+            </h2>
+
+            <p>
+              Showcase your residential or
+              commercial project to property
+              seekers on PROZPO.
+            </p>
+          </div>
+
+          <button
+            onClick={() =>
+              (window.location.hash =
+                "post-property")
+            }
+            style={
+              styles.ctaButton
+            }
+          >
+            List Your Project
+            <span>→</span>
+          </button>
+
+        </div>
+      </section>
+
+      <style>{`
+        @media (max-width: 950px) {
+          .prozpo-project-filter {
+            grid-template-columns: 1fr 1fr !important;
+          }
+
+          .prozpo-project-divider {
+            display: none !important;
+          }
+
+          .prozpo-project-search {
+            grid-column: 1 / -1 !important;
+          }
+
+          .prozpo-project-grid {
+            grid-template-columns: repeat(2,1fr) !important;
+          }
+        }
+
+        @media (max-width: 650px) {
+          .prozpo-project-hero {
+            padding: 45px 18px 90px !important;
+          }
+
+          .prozpo-project-inner {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+
+          .prozpo-project-title {
+            font-size: 42px !important;
+          }
+
+          .prozpo-project-filter {
+            grid-template-columns: 1fr !important;
+          }
+
+          .prozpo-project-search {
+            grid-column: auto !important;
+          }
+
+          .prozpo-project-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .prozpo-project-result {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+
+          .prozpo-project-actions {
+            width: 100% !important;
+          }
+
+          .prozpo-project-cta {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            padding: 30px 24px !important;
+          }
+        }
+      `}</style>
 
     </main>
   );
 }
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    background: "#f7f9fc",
+    color: "#172033",
+    fontFamily:
+      "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  },
+
+  hero: {
+    position: "relative",
+    overflow: "hidden",
+    background:
+      "linear-gradient(135deg,#07152f 0%,#0c2d5d 60%,#1769d2 100%)",
+    padding: "70px 24px 105px",
+  },
+
+  heroGlow: {
+    position: "absolute",
+    width: "440px",
+    height: "440px",
+    right: "-160px",
+    top: "-220px",
+    borderRadius: "50%",
+    background:
+      "rgba(70,210,255,.14)",
+    filter: "blur(25px)",
+  },
+
+  heroInner: {
+    position: "relative",
+    zIndex: 2,
+    maxWidth: "1200px",
+    margin: "0 auto",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: "30px",
+  },
+
+  badge: {
+    display: "inline-block",
+    padding: "8px 13px",
+    borderRadius: "20px",
+    background:
+      "rgba(255,255,255,.1)",
+    border:
+      "1px solid rgba(255,255,255,.15)",
+    color: "#cce7ff",
+    fontSize: "10px",
+    fontWeight: 900,
+    letterSpacing: "1.4px",
+  },
+
+  title: {
+    margin: "20px 0 13px",
+    color: "#ffffff",
+    fontSize: "57px",
+    lineHeight: 1.05,
+    letterSpacing: "-2px",
+  },
+
+  highlight: {
+    color: "#5ed5b2",
+  },
+
+  subtitle: {
+    margin: 0,
+    maxWidth: "690px",
+    color: "#c6d7eb",
+    fontSize: "16px",
+    lineHeight: 1.65,
+  },
+
+  heroStat: {
+    minWidth: "170px",
+    padding: "18px 22px",
+    borderRadius: "17px",
+    background:
+      "rgba(255,255,255,.1)",
+    border:
+      "1px solid rgba(255,255,255,.14)",
+    color: "#ffffff",
+    textAlign: "center",
+  },
+
+  filterWrapper: {
+    position: "relative",
+    zIndex: 5,
+    maxWidth: "1150px",
+    margin: "-48px auto 0",
+    padding: "0 20px",
+  },
+
+  filterBox: {
+    display: "grid",
+    gridTemplateColumns:
+      "1.5fr 1px 1fr 1px 1fr auto",
+    alignItems: "center",
+    gap: "15px",
+    padding: "10px",
+    background: "#ffffff",
+    border:
+      "1px solid #e5eaf0",
+    borderRadius: "18px",
+    boxShadow:
+      "0 20px 55px rgba(12,35,65,.14)",
+  },
+
+  searchField: {
+    display: "flex",
+    alignItems: "center",
+    gap: "11px",
+    padding: "7px 10px",
+  },
+
+  searchIcon: {
+    width: "39px",
+    height: "39px",
+    display: "grid",
+    placeItems: "center",
+    borderRadius: "11px",
+    background: "#edf5ff",
+    color: "#1769d2",
+    fontSize: "23px",
+  },
+
+  fieldContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  divider: {
+    width: "1px",
+    height: "42px",
+    background: "#e5eaf0",
+  },
+
+  filterField: {
+    minWidth: 0,
+    padding: "5px 8px",
+  },
+
+  searchButton: {
+    border: "none",
+    borderRadius: "12px",
+    minHeight: "52px",
+    padding: "0 23px",
+    background:
+      "linear-gradient(135deg,#1769d2,#0c55b5)",
+    color: "#ffffff",
+    fontSize: "13px",
+    fontWeight: 850,
+    cursor: "pointer",
+  },
+
+  content: {
+    maxWidth: "1200px",
+    margin: "0 auto",
+    padding: "75px 24px 80px",
+  },
+
+  resultHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: "30px",
+    marginBottom: "30px",
+  },
+
+  eyebrow: {
+    display: "block",
+    color: "#1769d2",
+    fontSize: "10px",
+    fontWeight: 900,
+    letterSpacing: "1.5px",
+    marginBottom: "7px",
+  },
+
+  resultTitle: {
+    margin: 0,
+    fontSize: "32px",
+    letterSpacing: "-.8px",
+  },
+
+  resultText: {
+    margin: "7px 0 0",
+    color: "#778294",
+    fontSize: "13px",
+  },
+
+  actions: {
+    display: "flex",
+    gap: "9px",
+    alignItems: "center",
+  },
+
+  clearButton: {
+    border:
+      "1px solid #dfe5ec",
+    background: "#ffffff",
+    color: "#667285",
+    borderRadius: "10px",
+    padding: "11px 14px",
+    fontSize: "12px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+
+  sort: {
+    border:
+      "1px solid #dfe5ec",
+    background: "#ffffff",
+    color: "#334056",
+    borderRadius: "10px",
+    padding: "11px 13px",
+    fontSize: "12px",
+    fontWeight: 700,
+    outline: "none",
+  },
+
+  grid: {
+    display: "grid",
+    gridTemplateColumns:
+      "repeat(3,1fr)",
+    gap: "22px",
+  },
+
+  card: {
+    background: "#ffffff",
+    border:
+      "1px solid #e7ebf0",
+    borderRadius: "18px",
+    overflow: "hidden",
+    transition: "all .25s ease",
+    boxShadow:
+      "0 7px 25px rgba(17,35,55,.045)",
+  },
+
+  image: {
+    position: "relative",
+    height: "225px",
+    backgroundColor: "#dceaf7",
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    overflow: "hidden",
+  },
+
+  placeholder: {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "7px",
+    background:
+      "linear-gradient(135deg,#d9eafa,#eef6fc)",
+    color: "#1769d2",
+  },
+
+  imageOverlay: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "linear-gradient(to top,rgba(5,20,40,.55),transparent 55%)",
+  },
+
+  verified: {
+    position: "absolute",
+    top: "13px",
+    left: "13px",
+    zIndex: 2,
+    padding: "7px 10px",
+    borderRadius: "20px",
+    background: "#ffffff",
+    color: "#0a9669",
+    fontSize: "10px",
+    fontWeight: 850,
+  },
+
+  favorite: {
+    position: "absolute",
+    top: "12px",
+    right: "12px",
+    zIndex: 2,
+    width: "37px",
+    height: "37px",
+    borderRadius: "50%",
+    border: "none",
+    background: "#ffffff",
+    color: "#445269",
+    fontSize: "20px",
+    cursor: "pointer",
+  },
+
+  projectTag: {
+    position: "absolute",
+    left: "13px",
+    bottom: "13px",
+    zIndex: 2,
+    color: "#ffffff",
+    fontSize: "10px",
+    fontWeight: 900,
+    letterSpacing: "1px",
+  },
+
+  cardContent: {
+    padding: "18px",
+  },
+
+  typeRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "8px",
+  },
+
+  type: {
+    color: "#1769d2",
+    fontSize: "10px",
+    fontWeight: 900,
+    textTransform: "uppercase",
+  },
+
+  verifiedText: {
+    color: "#0b9b6c",
+    fontSize: "9px",
+    fontWeight: 800,
+  },
+
+  cardTitle: {
+    margin: "9px 0 7px",
+    fontSize: "18px",
+    lineHeight: 1.3,
+  },
+
+  location: {
+    margin: 0,
+    color: "#727e90",
+    fontSize: "12px",
+  },
+
+  details: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "7px",
+    marginTop: "16px",
+    paddingTop: "14px",
+    borderTop:
+      "1px solid #edf0f4",
+  },
+
+  bottom: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: "10px",
+    marginTop: "17px",
+  },
+
+  priceLabel: {
+    display: "block",
+    color: "#8b95a4",
+    fontSize: "9px",
+    fontWeight: 800,
+    marginBottom: "3px",
+  },
+
+  price: {
+    color: "#172033",
+    fontSize: "17px",
+  },
+
+  enquire: {
+    border: "none",
+    borderRadius: "9px",
+    padding: "10px 12px",
+    background: "#edf5ff",
+    color: "#1769d2",
+    fontSize: "11px",
+    fontWeight: 850,
+    cursor: "pointer",
+  },
+
+  detailsButton: {
+    width: "100%",
+    marginTop: "12px",
+    padding: "10px",
+    borderRadius: "9px",
+    border:
+      "1px solid #dfe7ef",
+    background: "#ffffff",
+    color: "#334056",
+    fontSize: "11px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
+  skeleton: {
+    height: "390px",
+    padding: "15px",
+    borderRadius: "18px",
+    background: "#ffffff",
+    border:
+      "1px solid #e7ebf0",
+  },
+
+  skeletonImage: {
+    height: "220px",
+    borderRadius: "13px",
+    background: "#eef1f5",
+  },
+
+  skeletonLine: {
+    width: "80%",
+    height: "13px",
+    marginTop: "18px",
+    borderRadius: "8px",
+    background: "#eef1f5",
+  },
+
+  empty: {
+    textAlign: "center",
+    background: "#ffffff",
+    border:
+      "1px solid #e7ebf0",
+    borderRadius: "20px",
+    padding: "65px 20px",
+  },
+
+  emptyIcon: {
+    width: "65px",
+    height: "65px",
+    margin: "0 auto 18px",
+    display: "grid",
+    placeItems: "center",
+    borderRadius: "20px",
+    background: "#edf5ff",
+    fontSize: "27px",
+  },
+
+  emptyButton: {
+    border: "none",
+    background: "#1769d2",
+    color: "#ffffff",
+    padding: "11px 18px",
+    borderRadius: "10px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
+  ctaSection: {
+    padding: "0 24px 80px",
+  },
+
+  cta: {
+    maxWidth: "1150px",
+    margin: "0 auto",
+    padding: "38px 42px",
+    borderRadius: "22px",
+    background:
+      "linear-gradient(135deg,#092650,#1769d2)",
+    color: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "30px",
+  },
+
+  ctaEyebrow: {
+    color: "#b9ddff",
+    fontSize: "10px",
+    fontWeight: 900,
+    letterSpacing: "1.4px",
+  },
+
+  ctaButton: {
+    border: "none",
+    borderRadius: "11px",
+    padding: "14px 20px",
+    background: "#ffffff",
+    color: "#1769d2",
+    fontWeight: 850,
+    fontSize: "12px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+  },
+};
 
 export default Projects;
