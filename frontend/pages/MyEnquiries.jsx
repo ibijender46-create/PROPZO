@@ -20,23 +20,24 @@ export default function MyEnquiries() {
 
       const response = await getEnquiries();
 
-      const data =
-        response?.enquiries ||
-        response?.data ||
-        [];
+      let data = [];
 
-      setEnquiries(
-        Array.isArray(data) ? data : []
-      );
+      if (Array.isArray(response)) {
+        data = response;
+      } else if (Array.isArray(response?.enquiries)) {
+        data = response.enquiries;
+      } else if (Array.isArray(response?.data)) {
+        data = response.data;
+      }
+
+      setEnquiries(data);
     } catch (error) {
-      console.error(
-        "Enquiries loading error:",
-        error
-      );
+      console.error("Enquiries loading error:", error);
+
+      setEnquiries([]);
 
       setMessage(
-        error?.message ||
-          "Unable to load enquiries."
+        error?.message || "Unable to load enquiries."
       );
     } finally {
       setLoading(false);
@@ -44,12 +45,14 @@ export default function MyEnquiries() {
   }
 
   function formatDate(value) {
-    if (!value) return "Date unavailable";
+    if (!value) {
+      return "Date unavailable";
+    }
 
     const date = new Date(value);
 
     if (Number.isNaN(date.getTime())) {
-      return value;
+      return String(value);
     }
 
     return date.toLocaleDateString("en-IN", {
@@ -61,47 +64,62 @@ export default function MyEnquiries() {
 
   function getStatus(enquiry) {
     return (
-      enquiry.status ||
-      enquiry.enquiry_status ||
+      enquiry?.status ||
+      enquiry?.enquiry_status ||
       "New"
     );
   }
 
   function getPropertyTitle(enquiry) {
     return (
-      enquiry.property_title ||
-      enquiry.property?.title ||
-      enquiry.title ||
+      enquiry?.property_title ||
+      enquiry?.property?.title ||
+      enquiry?.title ||
       "Property Enquiry"
     );
   }
 
   function getName(enquiry) {
     return (
-      enquiry.name ||
-      enquiry.full_name ||
-      enquiry.contact_name ||
+      enquiry?.name ||
+      enquiry?.full_name ||
+      enquiry?.contact_name ||
       "Unknown User"
     );
   }
 
   function getPhone(enquiry) {
     return (
-      enquiry.phone ||
-      enquiry.mobile ||
-      enquiry.contact_phone ||
+      enquiry?.phone ||
+      enquiry?.mobile ||
+      enquiry?.contact_phone ||
       "Not provided"
     );
   }
 
+  function getEmail(enquiry) {
+    return (
+      enquiry?.email ||
+      enquiry?.contact_email ||
+      ""
+    );
+  }
+
+  function getLocation(enquiry) {
+    return (
+      enquiry?.location ||
+      enquiry?.property?.location ||
+      "Location not available"
+    );
+  }
+
   const filteredEnquiries = useMemo(() => {
-    const query = search
-      .toLowerCase()
-      .trim();
+    const query = search.toLowerCase().trim();
 
     return enquiries.filter((enquiry) => {
-      const enquiryStatus =
-        getStatus(enquiry);
+      const enquiryStatus = String(
+        getStatus(enquiry)
+      );
 
       const matchesStatus =
         status === "All" ||
@@ -112,9 +130,11 @@ export default function MyEnquiries() {
         getPropertyTitle(enquiry),
         getName(enquiry),
         getPhone(enquiry),
-        enquiry.email,
-        enquiry.message,
-        enquiry.location,
+        getEmail(enquiry),
+        enquiry?.message,
+        getLocation(enquiry),
+        enquiry?.city,
+        enquiry?.state,
       ]
         .filter(Boolean)
         .join(" ")
@@ -124,17 +144,14 @@ export default function MyEnquiries() {
         !query ||
         searchableText.includes(query);
 
-      return (
-        matchesStatus &&
-        matchesSearch
-      );
+      return matchesStatus && matchesSearch;
     });
   }, [enquiries, search, status]);
 
   function openProperty(enquiry) {
     const propertyId =
-      enquiry.property_id ||
-      enquiry.property?.id;
+      enquiry?.property_id ||
+      enquiry?.property?.id;
 
     if (!propertyId) {
       setSelected(enquiry);
@@ -146,12 +163,35 @@ export default function MyEnquiries() {
   }
 
   function contactUser(enquiry) {
-    const phone = String(
-      getPhone(enquiry)
-    ).replace(/\D/g, "");
+    const rawPhone = getPhone(enquiry);
+
+    if (
+      !rawPhone ||
+      rawPhone === "Not provided"
+    ) {
+      window.alert(
+        "Customer phone number is not available."
+      );
+      return;
+    }
+
+    let phone = String(rawPhone).replace(
+      /[^0-9]/g,
+      ""
+    );
 
     if (!phone) {
+      window.alert(
+        "Customer phone number is not available."
+      );
       return;
+    }
+
+    if (
+      phone.length === 10 &&
+      !phone.startsWith("91")
+    ) {
+      phone = `91${phone}`;
     }
 
     const text = encodeURIComponent(
@@ -162,7 +202,119 @@ export default function MyEnquiries() {
 
     window.open(
       `https://wa.me/${phone}?text=${text}`,
-      "_blank"
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setStatus("All");
+  }
+
+  function getStatusClass(value) {
+    const current = String(
+      value || "New"
+    ).toLowerCase();
+
+    if (current === "closed") {
+      return "status-closed";
+    }
+
+    if (current === "contacted") {
+      return "status-contacted";
+    }
+
+    if (current === "interested") {
+      return "status-interested";
+    }
+
+    return "status-new";
+  }
+
+  if (loading) {
+    return (
+      <>
+        <style>{`
+          .enquiries-loading-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            background:
+              radial-gradient(
+                circle at top left,
+                rgba(37,99,235,.10),
+                transparent 35%
+              ),
+              #f8fafc;
+            font-family:
+              Inter,
+              system-ui,
+              -apple-system,
+              BlinkMacSystemFont,
+              "Segoe UI",
+              sans-serif;
+          }
+
+          .enquiries-loading-box {
+            width: 100%;
+            max-width: 360px;
+            padding: 35px;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            background: #ffffff;
+            text-align: center;
+            box-shadow:
+              0 20px 55px rgba(15,23,42,.08);
+          }
+
+          .enquiries-spinner {
+            width: 45px;
+            height: 45px;
+            margin: 0 auto 15px;
+            border: 4px solid #dbeafe;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation:
+              enquiriesSpin .8s linear infinite;
+          }
+
+          .enquiries-loading-box h3 {
+            margin: 0 0 6px;
+            color: #0f172a;
+            font-size: 18px;
+          }
+
+          .enquiries-loading-box p {
+            margin: 0;
+            color: #64748b;
+            font-size: 13px;
+          }
+
+          @keyframes enquiriesSpin {
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}</style>
+
+        <div className="enquiries-loading-page">
+          <div className="enquiries-loading-box">
+            <div className="enquiries-spinner"></div>
+
+            <h3>
+              Loading Enquiries
+            </h3>
+
+            <p>
+              Please wait while your enquiries
+              are being loaded.
+            </p>
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -178,10 +330,23 @@ export default function MyEnquiries() {
               rgba(37,99,235,.08),
               transparent 35%
             ),
-            #f8fafc;
+            linear-gradient(
+              180deg,
+              #f8fafc 0%,
+              #eef4ff 100%
+            );
+          color: #172033;
+          font-family:
+            Inter,
+            system-ui,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            sans-serif;
         }
 
         .enquiries-container {
+          width: 100%;
           max-width: 1200px;
           margin: 0 auto;
         }
@@ -191,10 +356,13 @@ export default function MyEnquiries() {
         }
 
         .enquiries-badge {
-          display: inline-block;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           padding: 7px 13px;
-          margin-bottom: 10px;
-          border-radius: 20px;
+          margin-bottom: 11px;
+          border: 1px solid #c4b5fd;
+          border-radius: 999px;
           background: #ede9fe;
           color: #6d28d9;
           font-size: 11px;
@@ -205,41 +373,74 @@ export default function MyEnquiries() {
         .enquiries-header h1 {
           margin: 0 0 8px;
           color: #0f172a;
-          font-size: clamp(30px, 5vw, 45px);
-          font-weight: 900;
+          font-size: clamp(
+            30px,
+            5vw,
+            45px
+          );
+          line-height: 1.1;
+          font-weight: 950;
+          letter-spacing: -1.2px;
         }
 
         .enquiries-header p {
+          max-width: 720px;
           margin: 0;
           color: #64748b;
-          line-height: 1.6;
+          font-size: 14px;
+          line-height: 1.7;
+        }
+
+        .enquiries-message {
+          margin-bottom: 20px;
+          padding: 13px 15px;
+          border: 1px solid #bfdbfe;
+          border-radius: 11px;
+          background: #eff6ff;
+          color: #1d4ed8;
+          font-size: 13px;
+          font-weight: 800;
+          line-height: 1.5;
+          text-align: center;
         }
 
         .enquiries-toolbar {
           display: grid;
-          grid-template-columns: 1fr 200px;
+          grid-template-columns:
+            minmax(0, 1fr)
+            210px;
           gap: 12px;
-          margin-bottom: 22px;
+          margin-bottom: 18px;
         }
 
         .enquiry-search,
         .enquiry-filter {
           width: 100%;
+          min-height: 48px;
           box-sizing: border-box;
-          padding: 14px 16px;
+          padding: 12px 15px;
           border: 1px solid #dbe3ee;
           border-radius: 11px;
-          background: white;
+          background: #ffffff;
           color: #0f172a;
+          font-family: inherit;
           font-size: 14px;
           outline: none;
+          transition:
+            border-color .18s ease,
+            box-shadow .18s ease;
+        }
+
+        .enquiry-search::placeholder {
+          color: #94a3b8;
         }
 
         .enquiry-search:focus,
         .enquiry-filter:focus {
           border-color: #2563eb;
           box-shadow:
-            0 0 0 3px rgba(37,99,235,.10);
+            0 0 0 3px
+            rgba(37,99,235,.10);
         }
 
         .enquiries-summary {
@@ -250,17 +451,53 @@ export default function MyEnquiries() {
           margin-bottom: 18px;
           color: #475569;
           font-size: 14px;
-          font-weight: 800;
+          font-weight: 850;
+        }
+
+        .summary-count {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+        }
+
+        .summary-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #2563eb;
+        }
+
+        .summary-actions {
+          display: flex;
+          gap: 8px;
+        }
+
+        .refresh-button,
+        .clear-filter-button {
+          min-height: 38px;
+          border-radius: 9px;
+          padding: 8px 13px;
+          font-family: inherit;
+          font-size: 12px;
+          font-weight: 850;
+          cursor: pointer;
         }
 
         .refresh-button {
           border: 1px solid #dbe3ee;
-          border-radius: 9px;
-          padding: 9px 13px;
-          background: white;
+          background: #ffffff;
           color: #334155;
-          font-weight: 800;
-          cursor: pointer;
+        }
+
+        .refresh-button:hover {
+          border-color: #93c5fd;
+          color: #1d4ed8;
+        }
+
+        .clear-filter-button {
+          border: 1px solid #ddd6fe;
+          background: #f5f3ff;
+          color: #6d28d9;
         }
 
         .enquiries-grid {
@@ -271,19 +508,26 @@ export default function MyEnquiries() {
         }
 
         .enquiry-card {
+          overflow: hidden;
           padding: 22px;
           border: 1px solid #e2e8f0;
           border-radius: 18px;
-          background: white;
+          background: #ffffff;
           box-shadow:
-            0 10px 30px rgba(15,23,42,.06);
-          transition: .2s;
+            0 10px 30px
+            rgba(15,23,42,.06);
+          transition:
+            transform .2s ease,
+            box-shadow .2s ease,
+            border-color .2s ease;
         }
 
         .enquiry-card:hover {
           transform: translateY(-3px);
+          border-color: #cbd5e1;
           box-shadow:
-            0 15px 35px rgba(15,23,42,.10);
+            0 18px 40px
+            rgba(15,23,42,.10);
         }
 
         .enquiry-card-top {
@@ -291,7 +535,7 @@ export default function MyEnquiries() {
           align-items: flex-start;
           justify-content: space-between;
           gap: 15px;
-          margin-bottom: 17px;
+          margin-bottom: 18px;
         }
 
         .enquiry-property {
@@ -302,8 +546,8 @@ export default function MyEnquiries() {
           margin: 0 0 6px;
           color: #0f172a;
           font-size: 18px;
-          font-weight: 900;
           line-height: 1.35;
+          font-weight: 900;
         }
 
         .enquiry-date {
@@ -314,21 +558,41 @@ export default function MyEnquiries() {
         .status-badge {
           flex-shrink: 0;
           padding: 6px 10px;
-          border-radius: 20px;
-          background: #dbeafe;
-          color: #1d4ed8;
+          border-radius: 999px;
           font-size: 10px;
           font-weight: 900;
+          white-space: nowrap;
+        }
+
+        .status-new {
+          background: #dbeafe;
+          color: #1d4ed8;
+        }
+
+        .status-contacted {
+          background: #fef3c7;
+          color: #92400e;
+        }
+
+        .status-interested {
+          background: #dcfce7;
+          color: #166534;
+        }
+
+        .status-closed {
+          background: #f1f5f9;
+          color: #475569;
         }
 
         .enquiry-info {
           display: grid;
           gap: 10px;
-          margin-bottom: 17px;
+          margin-bottom: 16px;
         }
 
         .enquiry-info-row {
           display: flex;
+          align-items: flex-start;
           gap: 10px;
           color: #475569;
           font-size: 13px;
@@ -338,6 +602,7 @@ export default function MyEnquiries() {
         .enquiry-info-icon {
           width: 22px;
           flex: 0 0 22px;
+          text-align: center;
         }
 
         .enquiry-info strong {
@@ -345,13 +610,18 @@ export default function MyEnquiries() {
         }
 
         .enquiry-message {
+          margin-bottom: 16px;
           padding: 13px;
-          margin-bottom: 17px;
+          border: 1px solid #e2e8f0;
           border-radius: 10px;
           background: #f8fafc;
           color: #475569;
           font-size: 13px;
           line-height: 1.6;
+        }
+
+        .enquiry-message strong {
+          color: #0f172a;
         }
 
         .enquiry-actions {
@@ -362,12 +632,19 @@ export default function MyEnquiries() {
         }
 
         .enquiry-action {
-          padding: 10px 7px;
+          min-height: 40px;
+          padding: 9px 7px;
           border: 0;
           border-radius: 9px;
-          cursor: pointer;
+          font-family: inherit;
           font-size: 11px;
-          font-weight: 850;
+          font-weight: 900;
+          cursor: pointer;
+          transition: .18s ease;
+        }
+
+        .enquiry-action:hover {
+          transform: translateY(-1px);
         }
 
         .view-enquiry {
@@ -375,9 +652,17 @@ export default function MyEnquiries() {
           color: #1d4ed8;
         }
 
+        .view-enquiry:hover {
+          background: #dbeafe;
+        }
+
         .whatsapp-enquiry {
           background: #ecfdf5;
           color: #047857;
+        }
+
+        .whatsapp-enquiry:hover {
+          background: #d1fae5;
         }
 
         .property-enquiry {
@@ -385,34 +670,53 @@ export default function MyEnquiries() {
           color: #334155;
         }
 
+        .property-enquiry:hover {
+          background: #e2e8f0;
+        }
+
         .enquiries-loading,
         .enquiries-empty {
           padding: 55px 20px;
           border: 1px solid #e2e8f0;
           border-radius: 18px;
-          background: white;
+          background: #ffffff;
           color: #64748b;
           text-align: center;
+          box-shadow:
+            0 10px 30px
+            rgba(15,23,42,.05);
+        }
+
+        .enquiries-empty-icon {
+          margin-bottom: 12px;
+          font-size: 55px;
         }
 
         .enquiries-empty h2 {
           margin: 0 0 8px;
           color: #0f172a;
+          font-size: 22px;
         }
 
         .enquiries-empty p {
           margin: 0;
+          color: #64748b;
+          font-size: 13px;
+          line-height: 1.6;
         }
 
-        .enquiries-message {
-          margin-bottom: 20px;
-          padding: 12px 15px;
-          border-radius: 10px;
-          background: #eff6ff;
-          color: #1d4ed8;
-          font-size: 13px;
-          font-weight: 750;
-          text-align: center;
+        .empty-clear {
+          margin-top: 17px;
+          min-height: 42px;
+          padding: 9px 16px;
+          border: 0;
+          border-radius: 9px;
+          background: #2563eb;
+          color: #ffffff;
+          font-family: inherit;
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
         }
 
         .enquiry-modal-overlay {
@@ -423,70 +727,127 @@ export default function MyEnquiries() {
           align-items: center;
           justify-content: center;
           padding: 20px;
-          background: rgba(15,23,42,.65);
+          background:
+            rgba(15,23,42,.68);
+          backdrop-filter: blur(4px);
         }
 
         .enquiry-modal {
           width: 100%;
-          max-width: 520px;
+          max-width: 560px;
           max-height: 90vh;
           overflow-y: auto;
           padding: 25px;
-          border-radius: 18px;
-          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 20px;
+          background: #ffffff;
           box-shadow:
-            0 25px 70px rgba(0,0,0,.25);
+            0 30px 80px
+            rgba(0,0,0,.25);
         }
 
         .modal-top {
           display: flex;
           justify-content: space-between;
+          align-items: flex-start;
           gap: 15px;
           margin-bottom: 20px;
+        }
+
+        .modal-top-left {
+          min-width: 0;
+        }
+
+        .modal-badge {
+          display: inline-block;
+          margin-bottom: 7px;
+          color: #2563eb;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: .7px;
         }
 
         .modal-top h2 {
           margin: 0;
           color: #0f172a;
-          font-size: 22px;
+          font-size: 23px;
+          line-height: 1.2;
+          font-weight: 900;
         }
 
         .modal-close {
-          width: 35px;
-          height: 35px;
+          width: 36px;
+          height: 36px;
+          flex-shrink: 0;
           border: 0;
           border-radius: 50%;
           background: #f1f5f9;
           color: #334155;
-          font-size: 20px;
+          font-size: 21px;
+          line-height: 1;
           cursor: pointer;
+        }
+
+        .modal-close:hover {
+          background: #e2e8f0;
         }
 
         .modal-detail {
           display: grid;
-          gap: 13px;
+          gap: 11px;
         }
 
         .modal-detail-row {
-          padding: 12px;
-          border-radius: 9px;
+          padding: 13px;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
           background: #f8fafc;
         }
 
         .modal-detail-label {
-          margin-bottom: 4px;
+          margin-bottom: 5px;
           color: #94a3b8;
-          font-size: 11px;
-          font-weight: 800;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: .6px;
         }
 
         .modal-detail-value {
           color: #334155;
           font-size: 14px;
-          line-height: 1.5;
+          line-height: 1.55;
+          word-break: break-word;
         }
 
-        @media (max-width: 800px) {
+        .modal-footer {
+          display: grid;
+          grid-template-columns:
+            1fr 1fr;
+          gap: 9px;
+          margin-top: 18px;
+        }
+
+        .modal-footer-button {
+          min-height: 44px;
+          border: 0;
+          border-radius: 10px;
+          font-family: inherit;
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .modal-whatsapp {
+          background: #16a34a;
+          color: #ffffff;
+        }
+
+        .modal-property {
+          background: #2563eb;
+          color: #ffffff;
+        }
+
+        @media (max-width: 850px) {
           .enquiries-grid {
             grid-template-columns: 1fr;
           }
@@ -496,9 +857,9 @@ export default function MyEnquiries() {
           }
         }
 
-        @media (max-width: 550px) {
+        @media (max-width: 560px) {
           .enquiries-page {
-            padding: 30px 14px 60px;
+            padding: 30px 12px 60px;
           }
 
           .enquiries-summary {
@@ -506,11 +867,42 @@ export default function MyEnquiries() {
             flex-direction: column;
           }
 
+          .summary-actions {
+            width: 100%;
+          }
+
+          .refresh-button,
+          .clear-filter-button {
+            flex: 1;
+          }
+
+          .enquiry-card {
+            padding: 17px;
+            border-radius: 15px;
+          }
+
           .enquiry-card-top {
             flex-direction: column;
           }
 
+          .status-badge {
+            align-self: flex-start;
+          }
+
           .enquiry-actions {
+            grid-template-columns: 1fr;
+          }
+
+          .enquiry-modal-overlay {
+            padding: 10px;
+          }
+
+          .enquiry-modal {
+            padding: 18px;
+            border-radius: 16px;
+          }
+
+          .modal-footer {
             grid-template-columns: 1fr;
           }
         }
@@ -530,7 +922,8 @@ export default function MyEnquiries() {
 
             <p>
               View and manage property enquiries
-              received through the PROZPO marketplace.
+              received through the PROZPO
+              marketplace.
             </p>
           </section>
 
@@ -546,31 +939,35 @@ export default function MyEnquiries() {
               className="enquiry-search"
               type="search"
               value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
+              onChange={(event) =>
+                setSearch(event.target.value)
               }
-              placeholder="Search by property, name, phone or message..."
+              placeholder="Search by property, name, phone, email or message..."
             />
 
             <select
               className="enquiry-filter"
               value={status}
-              onChange={(e) =>
-                setStatus(e.target.value)
+              onChange={(event) =>
+                setStatus(event.target.value)
               }
             >
               <option value="All">
                 All Status
               </option>
+
               <option value="New">
                 New
               </option>
+
               <option value="Contacted">
                 Contacted
               </option>
+
               <option value="Interested">
                 Interested
               </option>
+
               <option value="Closed">
                 Closed
               </option>
@@ -579,32 +976,44 @@ export default function MyEnquiries() {
           </section>
 
           <div className="enquiries-summary">
-            <span>
-              {loading
-                ? "Loading enquiries..."
-                : `${filteredEnquiries.length} Enquiries Found`}
-            </span>
 
-            <button
-              className="refresh-button"
-              onClick={loadEnquiries}
-            >
-              ↻ Refresh
-            </button>
+            <div className="summary-count">
+              <span className="summary-dot"></span>
+
+              <span>
+                {filteredEnquiries.length}{" "}
+                Enquiries Found
+              </span>
+            </div>
+
+            <div className="summary-actions">
+
+              {(search || status !== "All") && (
+                <button
+                  type="button"
+                  className="clear-filter-button"
+                  onClick={clearFilters}
+                >
+                  Clear Filters
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="refresh-button"
+                onClick={loadEnquiries}
+              >
+                ↻ Refresh
+              </button>
+
+            </div>
+
           </div>
 
-          {loading ? (
-            <div className="enquiries-loading">
-              Loading your enquiries...
-            </div>
-          ) : filteredEnquiries.length === 0 ? (
+          {filteredEnquiries.length === 0 ? (
             <div className="enquiries-empty">
-              <div
-                style={{
-                  fontSize: "55px",
-                  marginBottom: "12px",
-                }}
-              >
+
+              <div className="enquiries-empty-icon">
                 📩
               </div>
 
@@ -613,140 +1022,195 @@ export default function MyEnquiries() {
               </h2>
 
               <p>
-                No enquiries are available for
-                the selected filters.
+                {enquiries.length === 0
+                  ? "No property enquiries are available yet."
+                  : "No enquiries match the selected search or status filter."}
               </p>
+
+              {(search || status !== "All") && (
+                <button
+                  type="button"
+                  className="empty-clear"
+                  onClick={clearFilters}
+                >
+                  Clear Filters
+                </button>
+              )}
+
             </div>
           ) : (
             <section className="enquiries-grid">
 
               {filteredEnquiries.map(
-                (enquiry, index) => (
-                  <article
-                    className="enquiry-card"
-                    key={
-                      enquiry.id ||
-                      index
-                    }
-                  >
+                (enquiry, index) => {
+                  const enquiryStatus =
+                    getStatus(enquiry);
 
-                    <div className="enquiry-card-top">
+                  return (
+                    <article
+                      className="enquiry-card"
+                      key={
+                        enquiry.id ||
+                        `enquiry-${index}`
+                      }
+                    >
 
-                      <div className="enquiry-property">
-                        <h2>
-                          {getPropertyTitle(
-                            enquiry
-                          )}
-                        </h2>
+                      <div className="enquiry-card-top">
 
-                        <div className="enquiry-date">
-                          Received:{" "}
-                          {formatDate(
-                            enquiry.created_at ||
-                              enquiry.createdAt
-                          )}
+                        <div className="enquiry-property">
+
+                          <h2>
+                            {getPropertyTitle(
+                              enquiry
+                            )}
+                          </h2>
+
+                          <div className="enquiry-date">
+                            Received:{" "}
+                            {formatDate(
+                              enquiry.created_at ||
+                                enquiry.createdAt
+                            )}
+                          </div>
+
                         </div>
+
+                        <span
+                          className={`status-badge ${getStatusClass(
+                            enquiryStatus
+                          )}`}
+                        >
+                          {enquiryStatus}
+                        </span>
+
                       </div>
 
-                      <span className="status-badge">
-                        {getStatus(enquiry)}
-                      </span>
+                      <div className="enquiry-info">
 
-                    </div>
-
-                    <div className="enquiry-info">
-
-                      <div className="enquiry-info-row">
-                        <span className="enquiry-info-icon">
-                          👤
-                        </span>
-
-                        <span>
-                          <strong>
-                            Name:
-                          </strong>{" "}
-                          {getName(enquiry)}
-                        </span>
-                      </div>
-
-                      <div className="enquiry-info-row">
-                        <span className="enquiry-info-icon">
-                          📞
-                        </span>
-
-                        <span>
-                          <strong>
-                            Phone:
-                          </strong>{" "}
-                          {getPhone(enquiry)}
-                        </span>
-                      </div>
-
-                      {enquiry.email && (
                         <div className="enquiry-info-row">
+
                           <span className="enquiry-info-icon">
-                            ✉️
+                            👤
                           </span>
 
                           <span>
                             <strong>
-                              Email:
+                              Name:
                             </strong>{" "}
-                            {enquiry.email}
+                            {getName(enquiry)}
                           </span>
+
+                        </div>
+
+                        <div className="enquiry-info-row">
+
+                          <span className="enquiry-info-icon">
+                            📞
+                          </span>
+
+                          <span>
+                            <strong>
+                              Phone:
+                            </strong>{" "}
+                            {getPhone(enquiry)}
+                          </span>
+
+                        </div>
+
+                        {getEmail(enquiry) && (
+                          <div className="enquiry-info-row">
+
+                            <span className="enquiry-info-icon">
+                              ✉️
+                            </span>
+
+                            <span>
+                              <strong>
+                                Email:
+                              </strong>{" "}
+                              {getEmail(enquiry)}
+                            </span>
+
+                          </div>
+                        )}
+
+                        {getLocation(enquiry) !==
+                          "Location not available" && (
+                          <div className="enquiry-info-row">
+
+                            <span className="enquiry-info-icon">
+                              📍
+                            </span>
+
+                            <span>
+                              <strong>
+                                Location:
+                              </strong>{" "}
+                              {getLocation(
+                                enquiry
+                              )}
+                            </span>
+
+                          </div>
+                        )}
+
+                      </div>
+
+                      {enquiry.message && (
+                        <div className="enquiry-message">
+
+                          <strong>
+                            Message:
+                          </strong>{" "}
+
+                          {enquiry.message}
+
                         </div>
                       )}
 
-                    </div>
+                      <div className="enquiry-actions">
 
-                    {enquiry.message && (
-                      <div className="enquiry-message">
-                        <strong>
-                          Message:
-                        </strong>{" "}
-                        {enquiry.message}
+                        <button
+                          type="button"
+                          className="enquiry-action view-enquiry"
+                          onClick={() =>
+                            setSelected(
+                              enquiry
+                            )
+                          }
+                        >
+                          👁 View
+                        </button>
+
+                        <button
+                          type="button"
+                          className="enquiry-action whatsapp-enquiry"
+                          onClick={() =>
+                            contactUser(
+                              enquiry
+                            )
+                          }
+                        >
+                          💬 WhatsApp
+                        </button>
+
+                        <button
+                          type="button"
+                          className="enquiry-action property-enquiry"
+                          onClick={() =>
+                            openProperty(
+                              enquiry
+                            )
+                          }
+                        >
+                          🏠 Property
+                        </button>
+
                       </div>
-                    )}
 
-                    <div className="enquiry-actions">
-
-                      <button
-                        className="enquiry-action view-enquiry"
-                        onClick={() =>
-                          setSelected(
-                            enquiry
-                          )
-                        }
-                      >
-                        View
-                      </button>
-
-                      <button
-                        className="enquiry-action whatsapp-enquiry"
-                        onClick={() =>
-                          contactUser(
-                            enquiry
-                          )
-                        }
-                      >
-                        WhatsApp
-                      </button>
-
-                      <button
-                        className="enquiry-action property-enquiry"
-                        onClick={() =>
-                          openProperty(
-                            enquiry
-                          )
-                        }
-                      >
-                        Property
-                      </button>
-
-                    </div>
-
-                  </article>
-                )
+                    </article>
+                  );
+                }
               )}
 
             </section>
@@ -756,28 +1220,51 @@ export default function MyEnquiries() {
       </main>
 
       {selected && (
-        <div className="enquiry-modal-overlay">
+        <div
+          className="enquiry-modal-overlay"
+          onClick={(event) => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              setSelected(null);
+            }
+          }}
+        >
 
           <div className="enquiry-modal">
 
             <div className="modal-top">
-              <h2>
-                Enquiry Details
-              </h2>
+
+              <div className="modal-top-left">
+
+                <span className="modal-badge">
+                  PROZPO ENQUIRY
+                </span>
+
+                <h2>
+                  Enquiry Details
+                </h2>
+
+              </div>
 
               <button
+                type="button"
                 className="modal-close"
                 onClick={() =>
                   setSelected(null)
                 }
+                aria-label="Close"
               >
                 ×
               </button>
+
             </div>
 
             <div className="modal-detail">
 
               <div className="modal-detail-row">
+
                 <div className="modal-detail-label">
                   PROPERTY
                 </div>
@@ -787,9 +1274,11 @@ export default function MyEnquiries() {
                     selected
                   )}
                 </div>
+
               </div>
 
               <div className="modal-detail-row">
+
                 <div className="modal-detail-label">
                   NAME
                 </div>
@@ -797,9 +1286,11 @@ export default function MyEnquiries() {
                 <div className="modal-detail-value">
                   {getName(selected)}
                 </div>
+
               </div>
 
               <div className="modal-detail-row">
+
                 <div className="modal-detail-label">
                   PHONE
                 </div>
@@ -807,21 +1298,37 @@ export default function MyEnquiries() {
                 <div className="modal-detail-value">
                   {getPhone(selected)}
                 </div>
+
               </div>
 
-              {selected.email && (
+              {getEmail(selected) && (
                 <div className="modal-detail-row">
+
                   <div className="modal-detail-label">
                     EMAIL
                   </div>
 
                   <div className="modal-detail-value">
-                    {selected.email}
+                    {getEmail(selected)}
                   </div>
+
                 </div>
               )}
 
               <div className="modal-detail-row">
+
+                <div className="modal-detail-label">
+                  LOCATION
+                </div>
+
+                <div className="modal-detail-value">
+                  {getLocation(selected)}
+                </div>
+
+              </div>
+
+              <div className="modal-detail-row">
+
                 <div className="modal-detail-label">
                   STATUS
                 </div>
@@ -829,7 +1336,67 @@ export default function MyEnquiries() {
                 <div className="modal-detail-value">
                   {getStatus(selected)}
                 </div>
+
               </div>
 
               <div className="modal-detail-row">
-                <div className="modal-detai
+
+                <div className="modal-detail-label">
+                  DATE
+                </div>
+
+                <div className="modal-detail-value">
+                  {formatDate(
+                    selected.created_at ||
+                      selected.createdAt
+                  )}
+                </div>
+
+              </div>
+
+              <div className="modal-detail-row">
+
+                <div className="modal-detail-label">
+                  MESSAGE
+                </div>
+
+                <div className="modal-detail-value">
+                  {selected.message ||
+                    "No message provided."}
+                </div>
+
+              </div>
+
+            </div>
+
+            <div className="modal-footer">
+
+              <button
+                type="button"
+                className="modal-footer-button modal-whatsapp"
+                onClick={() =>
+                  contactUser(selected)
+                }
+              >
+                💬 Contact on WhatsApp
+              </button>
+
+              <button
+                type="button"
+                className="modal-footer-button modal-property"
+                onClick={() =>
+                  openProperty(selected)
+                }
+              >
+                🏠 View Property
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+    </>
+  );
+}
