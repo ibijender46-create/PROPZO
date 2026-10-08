@@ -1,901 +1,853 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  getProperties,
-  getEnquiries,
-  getAgents,
-} from "../src/api";
+import React, { useEffect, useState } from "react";
+import { getProperty, updateProperty } from "../src/api";
 
-export default function AgentDashboard() {
-  const [properties, setProperties] = useState([]);
-  const [enquiries, setEnquiries] = useState([]);
-  const [agents, setAgents] = useState([]);
+const DEFAULT_FORM = {
+  title: "",
+  location: "",
+  price: "",
+  property_type: "Residential",
+  listing_type: "Sale",
+  description: "",
+  bedrooms: "",
+  bathrooms: "",
+  area: "",
+  area_unit: "sq ft",
+  furnishing: "Unfurnished",
+  possession: "Ready to Move",
+};
+
+export default function EditProperty() {
+  const [form, setForm] = useState(DEFAULT_FORM);
+  const [propertyId, setPropertyId] = useState("");
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState("overview");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    loadDashboard();
+    loadProperty();
   }, []);
 
-  async function loadDashboard() {
+  function getId() {
+    const hash = window.location.hash || "";
+    const match = hash.match(/edit-property\/([^/?#]+)/);
+
+    if (match) return match[1];
+
+    return new URLSearchParams(
+      window.location.search
+    ).get("id");
+  }
+
+  async function loadProperty() {
     try {
-      setLoading(true);
+      const id = getId();
 
-      const results = await Promise.allSettled([
-        getProperties(),
-        getEnquiries(),
-        getAgents(),
-      ]);
-
-      const propertyResult = results[0];
-      const enquiryResult = results[1];
-      const agentResult = results[2];
-
-      if (propertyResult.status === "fulfilled") {
-        const data = propertyResult.value;
-
-        setProperties(
-          data?.properties ||
-            data?.data ||
-            []
-        );
+      if (!id) {
+        throw new Error("Property ID not found.");
       }
 
-      if (enquiryResult.status === "fulfilled") {
-        const data = enquiryResult.value;
+      setPropertyId(id);
 
-        setEnquiries(
-          data?.enquiries ||
-            data?.data ||
-            []
-        );
+      const result = await getProperty(id);
+
+      const property =
+        result?.property ||
+        result?.data ||
+        result;
+
+      if (!property?.id) {
+        throw new Error("Property not found.");
       }
 
-      if (agentResult.status === "fulfilled") {
-        const data = agentResult.value;
-
-        setAgents(
-          data?.agents ||
-            data?.data ||
-            []
-        );
-      }
+      setForm({
+        title: property.title || "",
+        location: property.location || "",
+        price: property.price ?? "",
+        property_type:
+          property.property_type || "Residential",
+        listing_type:
+          property.listing_type || "Sale",
+        description:
+          property.description || "",
+        bedrooms: property.bedrooms ?? "",
+        bathrooms: property.bathrooms ?? "",
+        area: property.area ?? "",
+        area_unit:
+          property.area_unit || "sq ft",
+        furnishing:
+          property.furnishing || "Unfurnished",
+        possession:
+          property.possession || "Ready to Move",
+      });
     } catch (error) {
-      console.error(
-        "Agent dashboard error:",
-        error
+      console.error(error);
+      setMessage(
+        error?.message ||
+          "Unable to load property."
       );
     } finally {
       setLoading(false);
     }
   }
 
-  const filteredProperties = useMemo(() => {
-    const keyword =
-      search.toLowerCase().trim();
+  function changeField(event) {
+    const { name, value } = event.target;
 
-    if (!keyword) return properties;
+    setForm((old) => ({
+      ...old,
+      [name]: value,
+    }));
 
-    return properties.filter((property) =>
-      [
-        property.title,
-        property.location,
-        property.city,
-        property.property_type,
-        property.listing_type,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword)
-    );
-  }, [properties, search]);
+    setMessage("");
+    setSuccess(false);
+  }
 
-  const stats = useMemo(() => {
-    const active = properties.filter(
-      (property) =>
-        String(
-          property.status || "active"
-        ).toLowerCase() === "active"
-    ).length;
-
-    const sold = properties.filter(
-      (property) =>
-        String(
-          property.status || ""
-        ).toLowerCase() === "sold"
-    ).length;
-
-    const closedEnquiries =
-      enquiries.filter((item) =>
-        ["closed", "completed"].includes(
-          String(
-            item.status || ""
-          ).toLowerCase()
-        )
-      ).length;
-
-    return {
-      listings: properties.length,
-      active,
-      enquiries: enquiries.length,
-      closed: closedEnquiries,
-      team: agents.length,
-    };
-  }, [properties, enquiries, agents]);
-
-  function money(value) {
-    const amount = Number(value);
-
-    if (!amount) {
-      return "Price on Request";
+  function validate() {
+    if (!form.title.trim()) {
+      return "Property title is required.";
     }
 
-    if (amount >= 10000000) {
-      return `₹${(
-        amount / 10000000
-      ).toFixed(2)} Cr`;
+    if (!form.location.trim()) {
+      return "Property location is required.";
     }
 
-    if (amount >= 100000) {
-      return `₹${(
-        amount / 100000
-      ).toFixed(2)} L`;
+    if (
+      form.price === "" ||
+      Number(form.price) <= 0
+    ) {
+      return "Enter a valid property price.";
     }
 
-    return `₹${amount.toLocaleString(
-      "en-IN"
-    )}`;
+    if (
+      form.area !== "" &&
+      Number(form.area) < 0
+    ) {
+      return "Enter a valid property area.";
+    }
+
+    return "";
   }
 
-  function propertyImage(property) {
-    return (
-      property.image_url ||
-      property.image ||
-      property.thumbnail ||
-      "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=900&q=80"
-    );
-  }
+  async function saveProperty(event) {
+    event.preventDefault();
 
-  function viewProperty(id) {
-    if (!id) return;
+    const error = validate();
 
-    window.location.hash =
-      `property/${id}`;
-  }
-
-  function postProperty() {
-    window.location.hash =
-      "post-property";
-  }
-
-  function viewEnquiry(enquiry) {
-    const phone =
-      enquiry.phone ||
-      enquiry.mobile;
-
-    if (phone) {
-      const cleanPhone =
-        String(phone).replace(
-          /[^0-9]/g,
-          ""
-        );
-
-      window.open(
-        `https://wa.me/${cleanPhone}`,
-        "_blank"
-      );
+    if (error) {
+      setMessage(error);
+      setSuccess(false);
       return;
     }
 
-    window.alert(
-      "Customer contact number is not available."
-    );
+    try {
+      setSaving(true);
+      setMessage("");
+
+      await updateProperty(propertyId, {
+        title: form.title.trim(),
+        location: form.location.trim(),
+        price: Number(form.price),
+        property_type: form.property_type,
+        listing_type: form.listing_type,
+        description: form.description.trim(),
+        bedrooms:
+          form.bedrooms === ""
+            ? null
+            : Number(form.bedrooms),
+        bathrooms:
+          form.bathrooms === ""
+            ? null
+            : Number(form.bathrooms),
+        area:
+          form.area === ""
+            ? null
+            : Number(form.area),
+        area_unit:
+          form.area_unit || "sq ft",
+        furnishing:
+          form.furnishing || "Unfurnished",
+        possession:
+          form.possession || "Ready to Move",
+      });
+
+      setMessage(
+        "Property updated successfully!"
+      );
+      setSuccess(true);
+    } catch (error) {
+      console.error(error);
+      setMessage(
+        error?.message ||
+          "Unable to update property."
+      );
+      setSuccess(false);
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) {
     return (
-      <>
+      <div className="ep-loading">
         <style>{`
-          .agent-loading {
-            min-height: 70vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #f8fafc;
-            color: #475569;
-            font-size: 18px;
-            font-weight: 800;
+          .ep-loading{
+            min-height:100vh;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            background:#f5f8fc;
+            font-family:system-ui,sans-serif;
+          }
+          .ep-loader{
+            width:42px;
+            height:42px;
+            border:4px solid #dbeafe;
+            border-top-color:#2563eb;
+            border-radius:50%;
+            animation:spin .8s linear infinite;
+          }
+          .ep-loading p{
+            margin-left:12px;
+            color:#475569;
+            font-weight:700;
+          }
+          @keyframes spin{
+            to{transform:rotate(360deg)}
           }
         `}</style>
 
-        <div className="agent-loading">
-          Loading Agent Dashboard...
-        </div>
-      </>
+        <div className="ep-loader"></div>
+        <p>Loading property...</p>
+      </div>
     );
   }
 
   return (
-    <>
+    <main className="ep-page">
       <style>{`
-        .agent-page {
-          min-height: 100vh;
-          padding: 30px 18px 70px;
+        *{
+          box-sizing:border-box;
+        }
+
+        .ep-page{
+          min-height:100vh;
+          padding:30px 15px 70px;
           background:
             radial-gradient(
-              circle at top right,
-              rgba(16,185,129,.09),
-              transparent 30%
+              circle at top left,
+              rgba(37,99,235,.10),
+              transparent 32%
             ),
-            #f8fafc;
+            #f5f8fc;
+          color:#172033;
+          font-family:
+            Inter,
+            system-ui,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            sans-serif;
         }
 
-        .agent-container {
-          max-width: 1250px;
-          margin: 0 auto;
+        .ep-container{
+          width:100%;
+          max-width:950px;
+          margin:auto;
         }
 
-        .agent-hero {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 20px;
-          padding: 28px;
-          margin-bottom: 22px;
-          border-radius: 22px;
-          color: white;
-          background:
-            linear-gradient(
-              135deg,
-              #064e3b,
-              #059669
-            );
-          box-shadow:
-            0 18px 45px
-            rgba(6,78,59,.16);
+        .ep-back{
+          border:1px solid #dbe3ed;
+          background:#fff;
+          color:#334155;
+          border-radius:10px;
+          padding:10px 16px;
+          font-weight:800;
+          cursor:pointer;
+          margin-bottom:24px;
         }
 
-        .agent-hero h1 {
-          margin: 0 0 7px;
-          font-size: clamp(
-            27px,
-            4vw,
-            38px
-          );
-          font-weight: 950;
+        .ep-header{
+          text-align:center;
+          margin-bottom:28px;
         }
 
-        .agent-hero p {
-          margin: 0;
-          color: #d1fae5;
-          font-size: 14px;
-          line-height: 1.5;
+        .ep-badge{
+          display:inline-block;
+          padding:7px 13px;
+          border-radius:30px;
+          background:#eff6ff;
+          border:1px solid #bfdbfe;
+          color:#1d4ed8;
+          font-size:11px;
+          font-weight:900;
+          letter-spacing:.8px;
         }
 
-        .agent-hero-actions {
-          display: flex;
-          gap: 9px;
-          flex-wrap: wrap;
+        .ep-header h1{
+          margin:12px 0 7px;
+          font-size:clamp(32px,5vw,48px);
+          line-height:1.1;
+          font-weight:900;
         }
 
-        .agent-primary-btn,
-        .agent-secondary-btn {
-          border: 0;
-          padding: 13px 17px;
-          border-radius: 10px;
-          font-size: 13px;
-          font-weight: 900;
-          cursor: pointer;
-          white-space: nowrap;
+        .ep-header p{
+          margin:0 auto;
+          max-width:620px;
+          color:#64748b;
+          line-height:1.6;
         }
 
-        .agent-primary-btn {
-          background: white;
-          color: #047857;
+        .ep-card{
+          background:#fff;
+          border:1px solid #e2e8f0;
+          border-radius:20px;
+          padding:28px;
+          box-shadow:0 18px 55px rgba(15,23,42,.08);
         }
 
-        .agent-secondary-btn {
-          background:
-            rgba(255,255,255,.14);
-          color: white;
-          border: 1px solid
-            rgba(255,255,255,.25);
+        .ep-section{
+          margin-bottom:30px;
         }
 
-        .agent-primary-btn:hover {
-          background: #ecfdf5;
+        .ep-title{
+          margin:0 0 18px;
+          padding-bottom:10px;
+          border-bottom:1px solid #e5e7eb;
+          font-size:19px;
+          font-weight:900;
         }
 
-        .agent-tabs {
-          display: flex;
-          gap: 7px;
-          overflow-x: auto;
-          padding: 5px;
-          margin-bottom: 22px;
-          border: 1px solid #e2e8f0;
-          border-radius: 13px;
-          background: white;
+        .ep-grid{
+          display:grid;
+          grid-template-columns:repeat(2,minmax(0,1fr));
+          gap:16px;
         }
 
-        .agent-tab {
-          border: 0;
-          padding: 11px 17px;
-          border-radius: 9px;
-          background: transparent;
-          color: #64748b;
-          font-size: 13px;
-          font-weight: 850;
-          cursor: pointer;
-          white-space: nowrap;
+        .ep-full{
+          grid-column:1/-1;
         }
 
-        .agent-tab.active {
-          background: #059669;
-          color: white;
+        .ep-label{
+          display:block;
+          margin-bottom:7px;
+          color:#334155;
+          font-size:13px;
+          font-weight:800;
         }
 
-        .agent-stats {
-          display: grid;
-          grid-template-columns:
-            repeat(5, minmax(0, 1fr));
-          gap: 15px;
-          margin-bottom: 22px;
+        .ep-required{
+          color:#dc2626;
         }
 
-        .agent-stat {
-          padding: 20px;
-          border: 1px solid #e2e8f0;
-          border-radius: 17px;
-          background: white;
-          box-shadow:
-            0 7px 25px
-            rgba(15,23,42,.05);
+        .ep-input,
+        .ep-select,
+        .ep-textarea{
+          width:100%;
+          border:1px solid #cbd5e1;
+          border-radius:10px;
+          background:#fff;
+          color:#0f172a;
+          padding:12px;
+          font-family:inherit;
+          font-size:15px;
+          outline:none;
         }
 
-        .agent-stat-icon {
-          margin-bottom: 8px;
-          font-size: 20px;
+        .ep-input,
+        .ep-select{
+          min-height:46px;
         }
 
-        .agent-stat-label {
-          color: #64748b;
-          font-size: 11px;
-          font-weight: 800;
+        .ep-textarea{
+          min-height:145px;
+          resize:vertical;
+          line-height:1.6;
         }
 
-        .agent-stat-value {
-          margin-top: 5px;
-          color: #0f172a;
-          font-size: 27px;
-          font-weight: 950;
+        .ep-input:focus,
+        .ep-select:focus,
+        .ep-textarea:focus{
+          border-color:#2563eb;
+          box-shadow:0 0 0 3px rgba(37,99,235,.10);
         }
 
-        .agent-section {
-          padding: 23px;
-          border: 1px solid #e2e8f0;
-          border-radius: 19px;
-          background: white;
-          box-shadow:
-            0 8px 28px
-            rgba(15,23,42,.05);
+        .ep-actions{
+          display:grid;
+          grid-template-columns:1fr 1fr;
+          gap:12px;
         }
 
-        .agent-section-head {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 15px;
-          margin-bottom: 19px;
+        .ep-btn{
+          min-height:50px;
+          border:0;
+          border-radius:11px;
+          padding:12px 18px;
+          font-family:inherit;
+          font-weight:900;
+          cursor:pointer;
         }
 
-        .agent-section-head h2 {
-          margin: 0;
-          color: #0f172a;
-          font-size: 21px;
-          font-weight: 900;
+        .ep-cancel{
+          background:#f1f5f9;
+          color:#334155;
         }
 
-        .agent-search {
-          width: 290px;
-          max-width: 100%;
-          padding: 11px 13px;
-          border: 1px solid #dbe3ee;
-          border-radius: 10px;
-          outline: none;
-          font-size: 13px;
+        .ep-save{
+          background:#2563eb;
+          color:#fff;
         }
 
-        .agent-search:focus {
-          border-color: #059669;
-          box-shadow:
-            0 0 0 3px
-            rgba(5,150,105,.08);
+        .ep-save:hover:not(:disabled){
+          background:#1d4ed8;
         }
 
-        .agent-properties {
-          display: grid;
-          grid-template-columns:
-            repeat(3, minmax(0, 1fr));
-          gap: 18px;
+        .ep-btn:disabled{
+          opacity:.6;
+          cursor:not-allowed;
         }
 
-        .agent-property {
-          overflow: hidden;
-          border: 1px solid #e2e8f0;
-          border-radius: 15px;
-          background: white;
+        .ep-message{
+          margin-top:18px;
+          padding:13px 15px;
+          border-radius:10px;
+          text-align:center;
+          font-size:14px;
+          font-weight:800;
         }
 
-        .agent-property-image {
-          height: 170px;
-          position: relative;
-          background: #e2e8f0;
+        .ep-success{
+          background:#ecfdf5;
+          border:1px solid #a7f3d0;
+          color:#047857;
         }
 
-        .agent-property-image img {
-          display: block;
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
+        .ep-error{
+          background:#fef2f2;
+          border:1px solid #fecaca;
+          color:#b91c1c;
         }
 
-        .agent-property-tag {
-          position: absolute;
-          top: 10px;
-          left: 10px;
-          padding: 5px 9px;
-          border-radius: 20px;
-          background: #ecfdf5;
-          color: #047857;
-          font-size: 10px;
-          font-weight: 900;
+        .ep-saving{
+          display:inline-flex;
+          align-items:center;
+          gap:8px;
         }
 
-        .agent-property-body {
-          padding: 15px;
+        .ep-mini{
+          width:16px;
+          height:16px;
+          border:2px solid rgba(255,255,255,.4);
+          border-top-color:#fff;
+          border-radius:50%;
+          animation:spin .7s linear infinite;
         }
 
-        .agent-property-title {
-          margin: 0 0 6px;
-          color: #0f172a;
-          font-size: 16px;
-          font-weight: 900;
-          line-height: 1.35;
-        }
-
-        .agent-property-location {
-          margin: 0 0 10px;
-          color: #64748b;
-          font-size: 12px;
-        }
-
-        .agent-property-price {
-          color: #047857;
-          font-size: 18px;
-          font-weight: 950;
-        }
-
-        .agent-property-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          margin: 11px 0;
-        }
-
-        .agent-meta {
-          padding: 5px 7px;
-          border-radius: 7px;
-          background: #f1f5f9;
-          color: #475569;
-          font-size: 10px;
-          font-weight: 750;
-        }
-
-        .agent-view-btn {
-          width: 100%;
-          padding: 10px;
-          border: 0;
-          border-radius: 9px;
-          background: #059669;
-          color: white;
-          font-size: 12px;
-          font-weight: 900;
-          cursor: pointer;
-        }
-
-        .agent-view-btn:hover {
-          background: #047857;
-        }
-
-        .agent-enquiries {
-          display: grid;
-          gap: 12px;
-        }
-
-        .agent-enquiry {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 15px;
-          padding: 15px;
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-        }
-
-        .agent-enquiry-main {
-          min-width: 0;
-        }
-
-        .agent-enquiry-name {
-          margin: 0 0 5px;
-          color: #0f172a;
-          font-size: 14px;
-          font-weight: 900;
-        }
-
-        .agent-enquiry-property {
-          margin: 0 0 4px;
-          color: #475569;
-          font-size: 12px;
-        }
-
-        .agent-enquiry-contact {
-          margin: 0;
-          color: #94a3b8;
-          font-size: 11px;
-        }
-
-        .agent-enquiry-actions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .agent-enquiry-status {
-          padding: 6px 9px;
-          border-radius: 20px;
-          background: #ecfdf5;
-          color: #047857;
-          font-size: 10px;
-          font-weight: 900;
-          white-space: nowrap;
-        }
-
-        .agent-wa {
-          border: 0;
-          padding: 8px 11px;
-          border-radius: 8px;
-          background: #16a34a;
-          color: white;
-          font-size: 11px;
-          font-weight: 850;
-          cursor: pointer;
-        }
-
-        .agent-empty {
-          padding: 45px 20px;
-          text-align: center;
-          color: #64748b;
-        }
-
-        .agent-empty-icon {
-          margin-bottom: 9px;
-          font-size: 40px;
-        }
-
-        .agent-empty h3 {
-          margin: 0 0 6px;
-          color: #0f172a;
-        }
-
-        .agent-team {
-          display: grid;
-          grid-template-columns:
-            repeat(3, minmax(0, 1fr));
-          gap: 14px;
-        }
-
-        .agent-member {
-          padding: 17px;
-          border: 1px solid #e2e8f0;
-          border-radius: 13px;
-          background: #fff;
-        }
-
-        .agent-member-avatar {
-          width: 45px;
-          height: 45px;
-          margin-bottom: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 50%;
-          background: #ecfdf5;
-          color: #047857;
-          font-weight: 950;
-        }
-
-        .agent-member h3 {
-          margin: 0 0 4px;
-          color: #0f172a;
-          font-size: 14px;
-        }
-
-        .agent-member p {
-          margin: 0;
-          color: #64748b;
-          font-size: 11px;
-        }
-
-        @media (max-width: 1050px) {
-          .agent-stats {
-            grid-template-columns:
-              repeat(3, minmax(0, 1fr));
+        @media(max-width:700px){
+          .ep-page{
+            padding:22px 10px 55px;
           }
 
-          .agent-properties {
-            grid-template-columns:
-              repeat(2, minmax(0, 1fr));
+          .ep-card{
+            padding:18px;
+            border-radius:16px;
           }
 
-          .agent-team {
-            grid-template-columns:
-              repeat(2, minmax(0, 1fr));
-          }
-        }
-
-        @media (max-width: 700px) {
-          .agent-page {
-            padding: 20px 12px 55px;
+          .ep-grid{
+            grid-template-columns:1fr;
           }
 
-          .agent-hero {
-            align-items: flex-start;
-            flex-direction: column;
-            padding: 22px;
+          .ep-full{
+            grid-column:auto;
           }
 
-          .agent-hero-actions {
-            width: 100%;
-          }
-
-          .agent-primary-btn,
-          .agent-secondary-btn {
-            flex: 1;
-          }
-
-          .agent-stats {
-            grid-template-columns:
-              repeat(2, minmax(0, 1fr));
-          }
-
-          .agent-section {
-            padding: 16px;
-          }
-
-          .agent-section-head {
-            align-items: flex-start;
-            flex-direction: column;
-          }
-
-          .agent-search {
-            width: 100%;
-          }
-
-          .agent-properties {
-            grid-template-columns: 1fr;
-          }
-
-          .agent-team {
-            grid-template-columns: 1fr;
-          }
-
-          .agent-enquiry {
-            align-items: flex-start;
-            flex-direction: column;
-          }
-
-          .agent-enquiry-actions {
-            width: 100%;
-            justify-content: space-between;
+          .ep-actions{
+            grid-template-columns:1fr;
           }
         }
       `}</style>
 
-      <main className="agent-page">
-        <div className="agent-container">
+      <div className="ep-container">
 
-          <section className="agent-hero">
-            <div>
-              <h1>
-                Agent Dashboard
-              </h1>
+        <button
+          type="button"
+          className="ep-back"
+          onClick={() => window.history.back()}
+        >
+          ← Back
+        </button>
 
-              <p>
-                Manage listings, enquiries
-                and your real-estate sales
-                activity.
-              </p>
+        <header className="ep-header">
+          <span className="ep-badge">
+            PROZPO • MANAGE PROPERTY
+          </span>
+
+          <h1>Edit Property</h1>
+
+          <p>
+            Update your property details,
+            specifications and listing information.
+          </p>
+        </header>
+
+        <section className="ep-card">
+          <form onSubmit={saveProperty}>
+
+            <div className="ep-section">
+              <h2 className="ep-title">
+                🏠 Basic Details
+              </h2>
+
+              <div className="ep-grid">
+
+                <div className="ep-full">
+                  <label className="ep-label">
+                    Property Title
+                    <span className="ep-required">
+                      {" "}*
+                    </span>
+                  </label>
+
+                  <input
+                    className="ep-input"
+                    name="title"
+                    value={form.title}
+                    onChange={changeField}
+                    placeholder="Example: 3 BHK Premium Apartment"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="ep-label">
+                    Location
+                    <span className="ep-required">
+                      {" "}*
+                    </span>
+                  </label>
+
+                  <input
+                    className="ep-input"
+                    name="location"
+                    value={form.location}
+                    onChange={changeField}
+                    placeholder="City / Locality / Area"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="ep-label">
+                    Price
+                    <span className="ep-required">
+                      {" "}*
+                    </span>
+                  </label>
+
+                  <input
+                    className="ep-input"
+                    name="price"
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={form.price}
+                    onChange={changeField}
+                    placeholder="Property price"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="ep-label">
+                    Property Type
+                  </label>
+
+                  <select
+                    className="ep-select"
+                    name="property_type"
+                    value={form.property_type}
+                    onChange={changeField}
+                  >
+                    <option value="Residential">
+                      Residential
+                    </option>
+                    <option value="Apartment">
+                      Apartment
+                    </option>
+                    <option value="Villa">
+                      Villa
+                    </option>
+                    <option value="House">
+                      Independent House
+                    </option>
+                    <option value="Plot">
+                      Plot
+                    </option>
+                    <option value="Commercial">
+                      Commercial
+                    </option>
+                    <option value="Office">
+                      Office
+                    </option>
+                    <option value="Shop">
+                      Shop
+                    </option>
+                    <option value="Warehouse">
+                      Warehouse
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="ep-label">
+                    Listing Type
+                  </label>
+
+                  <select
+                    className="ep-select"
+                    name="listing_type"
+                    value={form.listing_type}
+                    onChange={changeField}
+                  >
+                    <option value="Sale">
+                      For Sale
+                    </option>
+                    <option value="Rent">
+                      For Rent
+                    </option>
+                    <option value="Lease">
+                      For Lease
+                    </option>
+                  </select>
+                </div>
+
+              </div>
             </div>
 
-            <div className="agent-hero-actions">
+            <div className="ep-section">
+              <h2 className="ep-title">
+                📐 Property Specifications
+              </h2>
+
+              <div className="ep-grid">
+
+                <div>
+                  <label className="ep-label">
+                    Area
+                  </label>
+
+                  <input
+                    className="ep-input"
+                    name="area"
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={form.area}
+                    onChange={changeField}
+                    placeholder="Property area"
+                  />
+                </div>
+
+                <div>
+                  <label className="ep-label">
+                    Area Unit
+                  </label>
+
+                  <select
+                    className="ep-select"
+                    name="area_unit"
+                    value={form.area_unit}
+                    onChange={changeField}
+                  >
+                    <option value="sq ft">
+                      Sq. Ft.
+                    </option>
+                    <option value="sq yd">
+                      Sq. Yd.
+                    </option>
+                    <option value="sq m">
+                      Sq. M.
+                    </option>
+                    <option value="acre">
+                      Acre
+                    </option>
+                    <option value="bigha">
+                      Bigha
+                    </option>
+                    <option value="gaj">
+                      Gaj
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="ep-label">
+                    Bedrooms
+                  </label>
+
+                  <select
+                    className="ep-select"
+                    name="bedrooms"
+                    value={form.bedrooms}
+                    onChange={changeField}
+                  >
+                    <option value="">
+                      Select Bedrooms
+                    </option>
+                    <option value="1">1 BHK</option>
+                    <option value="2">2 BHK</option>
+                    <option value="3">3 BHK</option>
+                    <option value="4">4 BHK</option>
+                    <option value="5">5+ BHK</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="ep-label">
+                    Bathrooms
+                  </label>
+
+                  <select
+                    className="ep-select"
+                    name="bathrooms"
+                    value={form.bathrooms}
+                    onChange={changeField}
+                  >
+                    <option value="">
+                      Select Bathrooms
+                    </option>
+                    <option value="1">
+                      1 Bathroom
+                    </option>
+                    <option value="2">
+                      2 Bathrooms
+                    </option>
+                    <option value="3">
+                      3 Bathrooms
+                    </option>
+                    <option value="4">
+                      4 Bathrooms
+                    </option>
+                    <option value="5">
+                      5+ Bathrooms
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="ep-label">
+                    Furnishing
+                  </label>
+
+                  <select
+                    className="ep-select"
+                    name="furnishing"
+                    value={form.furnishing}
+                    onChange={changeField}
+                  >
+                    <option value="Unfurnished">
+                      Unfurnished
+                    </option>
+                    <option value="Semi Furnished">
+                      Semi Furnished
+                    </option>
+                    <option value="Fully Furnished">
+                      Fully Furnished
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="ep-label">
+                    Possession
+                  </label>
+
+                  <select
+                    className="ep-select"
+                    name="possession"
+                    value={form.possession}
+                    onChange={changeField}
+                  >
+                    <option value="Ready to Move">
+                      Ready to Move
+                    </option>
+                    <option value="Under Construction">
+                      Under Construction
+                    </option>
+                    <option value="New Launch">
+                      New Launch
+                    </option>
+                    <option value="Immediate">
+                      Immediate
+                    </option>
+                  </select>
+                </div>
+
+              </div>
+            </div>
+
+            <div className="ep-section">
+              <h2 className="ep-title">
+                📝 Description
+              </h2>
+
+              <label className="ep-label">
+                Property Description
+              </label>
+
+              <textarea
+                className="ep-textarea"
+                name="description"
+                value={form.description}
+                onChange={changeField}
+                placeholder="Describe the property, location, features and nearby facilities..."
+              />
+            </div>
+
+            <div className="ep-actions">
+
               <button
-                className="agent-primary-btn"
-                onClick={postProperty}
+                type="button"
+                className="ep-btn ep-cancel"
+                onClick={() => window.history.back()}
+                disabled={saving}
               >
-                + Add Property
+                Cancel
               </button>
 
               <button
-                className="agent-secondary-btn"
-                onClick={loadDashboard}
+                type="submit"
+                className="ep-btn ep-save"
+                disabled={saving}
               >
-                ↻ Refresh
+                {saving ? (
+                  <span className="ep-saving">
+                    <span className="ep-mini"></span>
+                    Saving...
+                  </span>
+                ) : (
+                  "✓ Update Property"
+                )}
               </button>
-            </div>
-          </section>
 
-          <div className="agent-tabs">
-
-            <button
-              className={`agent-tab ${
-                activeTab === "overview"
-                  ? "active"
-                  : ""
-              }`}
-              onClick={() =>
-                setActiveTab("overview")
-              }
-            >
-              Overview
-            </button>
-
-            <button
-              className={`agent-tab ${
-                activeTab === "listings"
-                  ? "active"
-                  : ""
-              }`}
-              onClick={() =>
-                setActiveTab("listings")
-              }
-            >
-              Listings
-            </button>
-
-            <button
-              className={`agent-tab ${
-                activeTab === "enquiries"
-                  ? "active"
-                  : ""
-              }`}
-              onClick={() =>
-                setActiveTab("enquiries")
-              }
-            >
-              Enquiries
-            </button>
-
-            <button
-              className={`agent-tab ${
-                activeTab === "team"
-                  ? "active"
-                  : ""
-              }`}
-              onClick={() =>
-                setActiveTab("team")
-              }
-            >
-              Team
-            </button>
-
-          </div>
-
-          <section className="agent-stats">
-
-            <div className="agent-stat">
-              <div className="agent-stat-icon">
-                🏠
-              </div>
-
-              <div className="agent-stat-label">
-                Total Listings
-              </div>
-
-              <div className="agent-stat-value">
-                {stats.listings}
-              </div>
             </div>
 
-            <div className="agent-stat">
-              <div className="agent-stat-icon">
-                🟢
+            {message && (
+              <div
+                className={
+                  "ep-message " +
+                  (success
+                    ? "ep-success"
+                    : "ep-error")
+                }
+              >
+                {message}
               </div>
+            )}
 
-              <div className="agent-stat-label">
-                Active Listings
-              </div>
-
-              <div className="agent-stat-value">
-                {stats.active}
-              </div>
-            </div>
-
-            <div className="agent-stat">
-              <div className="agent-stat-icon">
-                📩
-              </div>
-
-              <div className="agent-stat-label">
-                Enquiries
-              </div>
-
-              <div className="agent-stat-value">
-                {stats.enquiries}
-              </div>
-            </div>
-
-            <div className="agent-stat">
-              <div className="agent-stat-icon">
-                ✅
-              </div>
-
-              <div className="agent-stat-label">
-                Closed
-              </div>
-
-              <div className="agent-stat-value">
-                {stats.closed}
-              </div>
-            </div>
-
-            <div className="agent-stat">
-              <div className="agent-stat-icon">
-                👥
-              </div>
-
-              <div className="agent-stat-label">
-                Agents
-              </div>
-
-              <div className="agent-stat-value">
-                {stats.team}
-              </div>
-            </div>
-
-          </section>
-
-          {(activeTab === "overview" ||
-            activeTab === "listings") && (
-            <section className="agent-section">
-
-              <div className="agent-section-head">
-                <h2>
-                  Property Listings
-                </h2>
-
-                <input
-                  className="agent-search"
-                  value={search}
-                  onChange={(e) =>
-                    setSearch(e.target.value)
-                  }
-                  placeholder="Search listings..."
-                />
-              </div>
-
-              {filteredProperties.length === 0 ? (
-                <div className="agent-empty">
-                  <div className="agent-empty-icon">
-                    🏠
-                  </div>
-
-                  <h3>
-                    No listings found
-                  </h3>
-
-                  <p>
-                    Add your first property
-                    listing to get started.
-                 
+          </form>
+        </section>
+      </div>
+    </main>
+  );
+}
