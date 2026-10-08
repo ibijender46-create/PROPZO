@@ -11,14 +11,9 @@ const initialForm = {
   bedrooms: "",
   bathrooms: "",
   area: "",
+  area_unit: "sq ft",
   furnishing: "Unfurnished",
   possession: "Ready to Move",
-  parking: "",
-  floor: "",
-  total_floors: "",
-  amenities: "",
-  contact_name: "",
-  contact_phone: "",
 };
 
 export default function EditProperty() {
@@ -36,17 +31,13 @@ export default function EditProperty() {
   function getPropertyId() {
     const hash = window.location.hash || "";
 
-    const match = hash.match(
-      /edit-property\/([^/?#]+)/
-    );
+    const match = hash.match(/edit-property\/([^/?#]+)/);
 
     if (match) {
       return match[1];
     }
 
-    const params = new URLSearchParams(
-      window.location.search
-    );
+    const params = new URLSearchParams(window.location.search);
 
     return params.get("id");
   }
@@ -54,13 +45,13 @@ export default function EditProperty() {
   async function loadProperty() {
     try {
       setLoading(true);
+      setMessage("");
+      setMessageType("");
 
       const id = getPropertyId();
 
       if (!id) {
-        throw new Error(
-          "Property ID not found."
-        );
+        throw new Error("Property ID not found.");
       }
 
       setPropertyId(id);
@@ -72,78 +63,49 @@ export default function EditProperty() {
         response?.data ||
         response;
 
-      if (!property) {
-        throw new Error(
-          "Property not found."
-        );
+      if (!property || !property.id) {
+        throw new Error("Property not found.");
       }
 
       setForm({
         title: property.title || "",
-        location:
-          property.location ||
-          property.address ||
-          "",
+        location: property.location || "",
         price:
           property.price !== null &&
           property.price !== undefined
             ? property.price
             : "",
         property_type:
-          property.property_type ||
-          "Residential",
+          property.property_type || "Residential",
         listing_type:
-          property.listing_type ||
-          "Sale",
-        description:
-          property.description || "",
+          property.listing_type || "Sale",
+        description: property.description || "",
         bedrooms:
-          property.bedrooms ??
-          "",
+          property.bedrooms !== null &&
+          property.bedrooms !== undefined
+            ? property.bedrooms
+            : "",
         bathrooms:
-          property.bathrooms ??
-          "",
+          property.bathrooms !== null &&
+          property.bathrooms !== undefined
+            ? property.bathrooms
+            : "",
         area:
-          property.area ??
-          "",
+          property.area !== null &&
+          property.area !== undefined
+            ? property.area
+            : "",
+        area_unit: property.area_unit || "sq ft",
         furnishing:
-          property.furnishing ||
-          "Unfurnished",
+          property.furnishing || "Unfurnished",
         possession:
-          property.possession ||
-          "Ready to Move",
-        parking:
-          property.parking ??
-          "",
-        floor:
-          property.floor ??
-          "",
-        total_floors:
-          property.total_floors ??
-          "",
-        amenities: Array.isArray(
-          property.amenities
-        )
-          ? property.amenities.join(", ")
-          : property.amenities || "",
-        contact_name:
-          property.contact_name ||
-          property.owner_name ||
-          "",
-        contact_phone:
-          property.contact_phone ||
-          property.phone ||
-          "",
+          property.possession || "Ready to Move",
       });
     } catch (error) {
-      console.error(
-        "Edit property loading error:",
-        error
-      );
+      console.error("Edit property loading error:", error);
 
       setMessage(
-        error?.message ||
-          "Unable to load property."
+        error?.message || "Unable to load property."
       );
       setMessageType("error");
     } finally {
@@ -169,8 +131,12 @@ export default function EditProperty() {
       return "Property location is required.";
     }
 
-    if (!form.price) {
-      return "Property price is required.";
+    if (
+      form.price === "" ||
+      form.price === null ||
+      Number(form.price) <= 0
+    ) {
+      return "Enter a valid property price.";
     }
 
     if (!form.description.trim()) {
@@ -186,8 +152,7 @@ export default function EditProperty() {
     setMessage("");
     setMessageType("");
 
-    const validationError =
-      validateForm();
+    const validationError = validateForm();
 
     if (validationError) {
       setMessage(validationError);
@@ -202,60 +167,39 @@ export default function EditProperty() {
         title: form.title.trim(),
         location: form.location.trim(),
         price: Number(form.price),
+
         property_type:
           form.property_type,
+
         listing_type:
           form.listing_type,
+
         description:
           form.description.trim(),
 
-        bedrooms: form.bedrooms
-          ? Number(form.bedrooms)
-          : null,
+        bedrooms:
+          form.bedrooms !== ""
+            ? Number(form.bedrooms)
+            : null,
 
-        bathrooms: form.bathrooms
-          ? Number(form.bathrooms)
-          : null,
+        bathrooms:
+          form.bathrooms !== ""
+            ? Number(form.bathrooms)
+            : null,
 
-        area: form.area
-          ? Number(form.area)
-          : null,
+        area:
+          form.area !== ""
+            ? Number(form.area)
+            : null,
+
+        area_unit:
+          form.area_unit || "sq ft",
 
         furnishing:
           form.furnishing,
 
         possession:
           form.possession,
-
-        parking: form.parking
-          ? Number(form.parking)
-          : null,
-
-        floor: form.floor
-          ? Number(form.floor)
-          : null,
-
-        total_floors:
-          form.total_floors
-            ? Number(form.total_floors)
-            : null,
-
-        amenities: form.amenities
-          ? form.amenities
-              .split(",")
-              .map((item) =>
-                item.trim()
-              )
-              .filter(Boolean)
-          : [],
-
-        contact_name:
-          form.contact_name.trim() ||
-          null,
-
-        contact_phone:
-          form.contact_phone.trim() ||
-          null,
 
         updated_at:
           new Date().toISOString(),
@@ -269,7 +213,6 @@ export default function EditProperty() {
       setMessage(
         "Property updated successfully!"
       );
-
       setMessageType("success");
     } catch (error) {
       console.error(
@@ -281,7 +224,6 @@ export default function EditProperty() {
         error?.message ||
           "Unable to update property."
       );
-
       setMessageType("error");
     } finally {
       setSaving(false);
@@ -294,24 +236,63 @@ export default function EditProperty() {
 
   if (loading) {
     return (
-      <>
+      <div className="edit-loading">
+        <div className="edit-loading-box">
+          <div className="edit-spinner"></div>
+          <p>Loading property...</p>
+        </div>
+
         <style>{`
           .edit-loading {
-            min-height: 70vh;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #f8fafc;
+            padding: 24px;
+            background:
+              radial-gradient(
+                circle at top left,
+                rgba(37,99,235,.12),
+                transparent 35%
+              ),
+              #f8fafc;
+            font-family:
+              Inter,
+              ui-sans-serif,
+              system-ui,
+              -apple-system,
+              BlinkMacSystemFont,
+              "Segoe UI",
+              sans-serif;
+          }
+
+          .edit-loading-box {
+            text-align: center;
             color: #475569;
-            font-size: 18px;
+          }
+
+          .edit-loading-box p {
+            margin: 14px 0 0;
             font-weight: 800;
           }
-        `}</style>
 
-        <div className="edit-loading">
-          Loading property...
-        </div>
-      </>
+          .edit-spinner {
+            width: 42px;
+            height: 42px;
+            margin: 0 auto;
+            border: 4px solid #dbeafe;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: editSpin .8s linear infinite;
+          }
+
+          @keyframes editSpin {
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}</style>
+      </div>
     );
   }
 
@@ -327,26 +308,49 @@ export default function EditProperty() {
               rgba(37,99,235,.09),
               transparent 35%
             ),
-            #f8fafc;
+            linear-gradient(
+              180deg,
+              #f8fafc 0%,
+              #eef4ff 100%
+            );
+          font-family:
+            Inter,
+            ui-sans-serif,
+            system-ui,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            sans-serif;
         }
 
         .edit-property-container {
-          max-width: 950px;
+          width: 100%;
+          max-width: 980px;
           margin: 0 auto;
         }
 
         .edit-top {
-          margin-bottom: 25px;
+          margin-bottom: 24px;
         }
 
         .edit-back {
+          min-height: 44px;
           border: 1px solid #dbe3ee;
-          border-radius: 10px;
-          padding: 10px 16px;
-          background: #fff;
+          border-radius: 11px;
+          padding: 10px 17px;
+          background: #ffffff;
           color: #334155;
+          font-size: 14px;
           font-weight: 800;
           cursor: pointer;
+          box-shadow: 0 5px 18px rgba(15,23,42,.05);
+          transition: .2s ease;
+        }
+
+        .edit-back:hover {
+          transform: translateY(-1px);
+          border-color: #93c5fd;
+          color: #1d4ed8;
         }
 
         .edit-header {
@@ -355,49 +359,63 @@ export default function EditProperty() {
         }
 
         .edit-badge {
-          display: inline-block;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           padding: 8px 15px;
-          border-radius: 30px;
-          background: #fef3c7;
-          color: #92400e;
+          border-radius: 999px;
+          background: #eff6ff;
+          border: 1px solid #bfdbfe;
+          color: #1d4ed8;
           font-size: 12px;
           font-weight: 900;
-          letter-spacing: .7px;
-          margin-bottom: 14px;
+          letter-spacing: .8px;
         }
 
         .edit-header h1 {
-          margin: 0 0 10px;
+          margin: 14px 0 8px;
           color: #0f172a;
           font-size: clamp(32px, 5vw, 48px);
+          line-height: 1.08;
           font-weight: 900;
+          letter-spacing: -1.5px;
         }
 
         .edit-header p {
-          margin: 0;
+          margin: 0 auto;
+          max-width: 650px;
           color: #64748b;
-          line-height: 1.6;
+          font-size: 15px;
+          line-height: 1.7;
         }
 
         .edit-card {
-          padding: 30px;
+          padding: 32px;
           border: 1px solid #e2e8f0;
-          border-radius: 22px;
-          background: #fff;
+          border-radius: 24px;
+          background: rgba(255,255,255,.98);
           box-shadow:
-            0 18px 50px rgba(15,23,42,.08);
+            0 20px 60px rgba(15,23,42,.08);
         }
 
         .edit-section {
-          margin-bottom: 30px;
+          margin-bottom: 32px;
+        }
+
+        .edit-section:last-child {
+          margin-bottom: 0;
         }
 
         .edit-section-title {
-          margin: 0 0 18px;
-          padding-bottom: 10px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 0 0 20px;
+          padding-bottom: 12px;
           border-bottom: 1px solid #e5e7eb;
           color: #0f172a;
           font-size: 19px;
+          line-height: 1.3;
           font-weight: 900;
         }
 
@@ -405,12 +423,13 @@ export default function EditProperty() {
           display: grid;
           grid-template-columns:
             repeat(2, minmax(0, 1fr));
-          gap: 16px;
+          gap: 18px;
         }
 
         .edit-group {
           display: flex;
           flex-direction: column;
+          min-width: 0;
         }
 
         .edit-full {
@@ -432,14 +451,19 @@ export default function EditProperty() {
         .edit-select,
         .edit-textarea {
           width: 100%;
+          min-height: 46px;
           box-sizing: border-box;
-          padding: 13px 14px;
-          border: 1px solid #dbe3ee;
+          padding: 11px 13px;
+          border: 1px solid #cbd5e1;
           border-radius: 11px;
-          background: #fff;
+          background: #ffffff;
           color: #0f172a;
+          font-family: inherit;
           font-size: 15px;
           outline: none;
+          transition:
+            border-color .18s ease,
+            box-shadow .18s ease;
         }
 
         .edit-input:focus,
@@ -450,31 +474,54 @@ export default function EditProperty() {
             0 0 0 3px rgba(37,99,235,.10);
         }
 
+        .edit-input::placeholder,
+        .edit-textarea::placeholder {
+          color: #94a3b8;
+        }
+
         .edit-textarea {
-          min-height: 140px;
+          min-height: 150px;
           resize: vertical;
           line-height: 1.6;
+        }
+
+        .edit-help {
+          margin-top: 6px;
+          color: #94a3b8;
+          font-size: 12px;
         }
 
         .edit-actions {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 12px;
-          margin-top: 10px;
+          margin-top: 8px;
         }
 
         .edit-button {
-          padding: 15px;
+          min-height: 50px;
+          padding: 14px 18px;
           border: 0;
-          border-radius: 11px;
+          border-radius: 12px;
+          font-family: inherit;
           font-size: 15px;
-          font-weight: 850;
+          font-weight: 900;
           cursor: pointer;
+          transition:
+            transform .18s ease,
+            background .18s ease,
+            opacity .18s ease;
+        }
+
+        .edit-button:hover:not(:disabled) {
+          transform: translateY(-1px);
         }
 
         .edit-save {
           background: #2563eb;
-          color: #fff;
+          color: #ffffff;
+          box-shadow:
+            0 9px 22px rgba(37,99,235,.20);
         }
 
         .edit-save:hover:not(:disabled) {
@@ -486,6 +533,10 @@ export default function EditProperty() {
           color: #334155;
         }
 
+        .edit-cancel:hover:not(:disabled) {
+          background: #e2e8f0;
+        }
+
         .edit-button:disabled {
           opacity: .6;
           cursor: not-allowed;
@@ -493,11 +544,12 @@ export default function EditProperty() {
 
         .edit-message {
           margin-top: 18px;
-          padding: 13px 15px;
-          border-radius: 10px;
+          padding: 14px 16px;
+          border-radius: 11px;
           text-align: center;
           font-size: 14px;
-          font-weight: 750;
+          font-weight: 800;
+          line-height: 1.5;
         }
 
         .edit-message.success {
@@ -512,18 +564,35 @@ export default function EditProperty() {
           color: #b91c1c;
         }
 
+        .edit-saving {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+
+        .edit-mini-spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(255,255,255,.45);
+          border-top-color: #ffffff;
+          border-radius: 50%;
+          animation: editSpin .7s linear infinite;
+        }
+
         @media (max-width: 700px) {
           .edit-property-page {
-            padding: 30px 14px 60px;
+            padding: 28px 14px 60px;
           }
 
           .edit-card {
             padding: 20px;
-            border-radius: 17px;
+            border-radius: 18px;
           }
 
           .edit-grid {
             grid-template-columns: 1fr;
+            gap: 15px;
           }
 
           .edit-full {
@@ -533,6 +602,35 @@ export default function EditProperty() {
           .edit-actions {
             grid-template-columns: 1fr;
           }
+
+          .edit-header {
+            margin-bottom: 22px;
+          }
+
+          .edit-header h1 {
+            font-size: 34px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .edit-property-page {
+            padding-left: 10px;
+            padding-right: 10px;
+          }
+
+          .edit-card {
+            padding: 16px;
+          }
+
+          .edit-section-title {
+            font-size: 17px;
+          }
+
+          .edit-input,
+          .edit-select,
+          .edit-textarea {
+            font-size: 16px;
+          }
         }
       `}</style>
 
@@ -541,6 +639,7 @@ export default function EditProperty() {
 
           <div className="edit-top">
             <button
+              type="button"
               className="edit-back"
               onClick={goBack}
             >
@@ -567,6 +666,7 @@ export default function EditProperty() {
 
             <form onSubmit={handleSubmit}>
 
+              {/* BASIC DETAILS */}
               <section className="edit-section">
                 <h2 className="edit-section-title">
                   🏠 Basic Details
@@ -623,6 +723,7 @@ export default function EditProperty() {
                       name="price"
                       type="number"
                       min="0"
+                      step="any"
                       value={form.price}
                       onChange={handleChange}
                       placeholder="Property Price"
@@ -694,6 +795,7 @@ export default function EditProperty() {
                 </div>
               </section>
 
+              {/* SPECIFICATIONS */}
               <section className="edit-section">
                 <h2 className="edit-section-title">
                   📐 Property Specifications
@@ -703,7 +805,7 @@ export default function EditProperty() {
 
                   <div className="edit-group">
                     <label className="edit-label">
-                      Area (Sq. Ft.)
+                      Area
                     </label>
 
                     <input
@@ -711,102 +813,8 @@ export default function EditProperty() {
                       name="area"
                       type="number"
                       min="0"
+                      step="any"
                       value={form.area}
                       onChange={handleChange}
-                      placeholder="Area"
-                    />
-                  </div>
-
-                  <div className="edit-group">
-                    <label className="edit-label">
-                      Bedrooms
-                    </label>
-
-                    <input
-                      className="edit-input"
-                      name="bedrooms"
-                      type="number"
-                      min="0"
-                      value={form.bedrooms}
-                      onChange={handleChange}
-                      placeholder="Bedrooms"
-                    />
-                  </div>
-
-                  <div className="edit-group">
-                    <label className="edit-label">
-                      Bathrooms
-                    </label>
-
-                    <input
-                      className="edit-input"
-                      name="bathrooms"
-                      type="number"
-                      min="0"
-                      value={form.bathrooms}
-                      onChange={handleChange}
-                      placeholder="Bathrooms"
-                    />
-                  </div>
-
-                  <div className="edit-group">
-                    <label className="edit-label">
-                      Parking
-                    </label>
-
-                    <input
-                      className="edit-input"
-                      name="parking"
-                      type="number"
-                      min="0"
-                      value={form.parking}
-                      onChange={handleChange}
-                      placeholder="Parking Spaces"
-                    />
-                  </div>
-
-                  <div className="edit-group">
-                    <label className="edit-label">
-                      Floor
-                    </label>
-
-                    <input
-                      className="edit-input"
-                      name="floor"
-                      type="number"
-                      min="0"
-                      value={form.floor}
-                      onChange={handleChange}
-                      placeholder="Current Floor"
-                    />
-                  </div>
-
-                  <div className="edit-group">
-                    <label className="edit-label">
-                      Total Floors
-                    </label>
-
-                    <input
-                      className="edit-input"
-                      name="total_floors"
-                      type="number"
-                      min="0"
-                      value={form.total_floors}
-                      onChange={handleChange}
-                      placeholder="Total Floors"
-                    />
-                  </div>
-
-                  <div className="edit-group">
-                    <label className="edit-label">
-                      Furnishing
-                    </label>
-
-                    <select
-                      className="edit-select"
-                      name="furnishing"
-                      value={form.furnishing}
-                      onChange={handleChange}
-                    >
-                      <option value="Unfurnished">
-                        Unfurnish
+                      placeholder="Property Area"
+               
