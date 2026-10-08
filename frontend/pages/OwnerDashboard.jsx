@@ -1,17 +1,22 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   getProperties,
+  getProjects,
   getEnquiries,
+  getFavorites,
   deleteProperty,
 } from "../src/api";
 
 export default function OwnerDashboard() {
   const [properties, setProperties] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [enquiries, setEnquiries] = useState([]);
+  const [favorites, setFavorites] = useState([]);
+
   const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState(null);
-  const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
+  const [search, setSearch] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     loadDashboard();
@@ -20,165 +25,372 @@ export default function OwnerDashboard() {
   async function loadDashboard() {
     try {
       setLoading(true);
+      setMessage("");
 
-      const [propertyResponse, enquiryResponse] =
-        await Promise.all([
-          getProperties(),
-          getEnquiries(),
-        ]);
+      const results = await Promise.allSettled([
+        getProperties(),
+        getProjects(),
+        getEnquiries(),
+        getFavorites(),
+      ]);
+
+      function extract(result, key) {
+        if (result.status !== "fulfilled") {
+          return [];
+        }
+
+        const data = result.value;
+
+        if (Array.isArray(data)) {
+          return data;
+        }
+
+        if (Array.isArray(data?.[key])) {
+          return data[key];
+        }
+
+        if (Array.isArray(data?.data)) {
+          return data.data;
+        }
+
+        return [];
+      }
 
       setProperties(
-        propertyResponse?.properties ||
-          propertyResponse?.data ||
-          []
+        extract(results[0], "properties")
+      );
+
+      setProjects(
+        extract(results[1], "favorites")
       );
 
       setEnquiries(
-        enquiryResponse?.enquiries ||
-          enquiryResponse?.data ||
-          []
+        extract(results[2], "enquiries")
+      );
+
+      setFavorites(
+        extract(results[3], "favorites")
       );
     } catch (error) {
       console.error(
         "Owner dashboard error:",
         error
       );
+
+      setMessage(
+        error?.message ||
+          "Unable to load dashboard."
+      );
     } finally {
       setLoading(false);
     }
   }
 
-  const filteredProperties = useMemo(() => {
-    const keyword = search.toLowerCase().trim();
-
-    if (!keyword) return properties;
-
-    return properties.filter((property) =>
-      [
-        property.title,
-        property.location,
-        property.city,
-        property.property_type,
-        property.listing_type,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword)
-    );
-  }, [properties, search]);
-
   const stats = useMemo(() => {
     const active = properties.filter(
-      (item) =>
-        String(item.status || "active").toLowerCase() ===
-        "active"
+      (property) => {
+        const status = String(
+          property.status || "active"
+        ).toLowerCase();
+
+        return ![
+          "sold",
+          "inactive",
+          "rejected",
+        ].includes(status);
+      }
+    ).length;
+
+    const pending = properties.filter(
+      (property) => {
+        const status = String(
+          property.status || ""
+        ).toLowerCase();
+
+        return [
+          "pending",
+          "review",
+          "draft",
+        ].includes(status);
+      }
     ).length;
 
     const sold = properties.filter(
-      (item) =>
-        String(item.status || "").toLowerCase() ===
-        "sold"
+      (property) =>
+        String(
+          property.status || ""
+        ).toLowerCase() === "sold"
     ).length;
 
-    const pending = enquiries.filter(
-      (item) =>
-        !["closed", "completed"].includes(
-          String(item.status || "").toLowerCase()
-        )
-    ).length;
+    const newEnquiries =
+      enquiries.filter((enquiry) => {
+        const status = String(
+          enquiry.status || "new"
+        ).toLowerCase();
+
+        return [
+          "new",
+          "pending",
+        ].includes(status);
+      }).length;
 
     return {
-      total: properties.length,
-      active,
-      sold,
+      totalProperties:
+        properties.length,
+      activeProperties: active,
+      pendingProperties: pending,
+      soldProperties: sold,
       enquiries: enquiries.length,
-      pending,
+      newEnquiries,
+      favorites: favorites.length,
     };
-  }, [properties, enquiries]);
+  }, [
+    properties,
+    enquiries,
+    favorites,
+  ]);
+
+  const filteredProperties = useMemo(() => {
+    const keyword =
+      search.toLowerCase().trim();
+
+    if (!keyword) {
+      return properties;
+    }
+
+    return properties.filter(
+      (property) =>
+        [
+          property.title,
+          property.location,
+          property.city,
+          property.state,
+          property.property_type,
+          property.listing_type,
+          property.status,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(keyword)
+    );
+  }, [properties, search]);
 
   function money(value) {
     const amount = Number(value);
 
-    if (!amount) return "Price on Request";
+    if (!amount) {
+      return "Price on Request";
+    }
 
     if (amount >= 10000000) {
-      return `₹${(amount / 10000000).toFixed(2)} Cr`;
+      return `₹${(
+        amount / 10000000
+      ).toFixed(2)} Cr`;
     }
 
     if (amount >= 100000) {
-      return `₹${(amount / 100000).toFixed(2)} L`;
+      return `₹${(
+        amount / 100000
+      ).toFixed(2)} L`;
     }
 
-    return `₹${amount.toLocaleString("en-IN")}`;
+    return `₹${amount.toLocaleString(
+      "en-IN"
+    )}`;
   }
 
   function propertyImage(property) {
     return (
-      property.image_url ||
-      property.image ||
-      property.thumbnail ||
-      "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=900&q=80"
+      property?.image_url ||
+      property?.image ||
+      property?.thumbnail ||
+      "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1000&q=80"
     );
+  }
+
+  function propertyTitle(property) {
+    return (
+      property?.title ||
+      "Untitled Property"
+    );
+  }
+
+  function propertyLocation(property) {
+    return (
+      property?.location ||
+      property?.city ||
+      property?.state ||
+      "Location unavailable"
+    );
+  }
+
+  function propertyStatus(status) {
+    const value = String(
+      status || "Active"
+    ).toLowerCase();
+
+    if (
+      [
+        "approved",
+        "active",
+        "published",
+        "available",
+      ].includes(value)
+    ) {
+      return "active";
+    }
+
+    if (
+      [
+        "pending",
+        "review",
+        "draft",
+      ].includes(value)
+    ) {
+      return "pending";
+    }
+
+    if (
+      [
+        "sold",
+        "rejected",
+        "inactive",
+        "blocked",
+      ].includes(value)
+    ) {
+      return "danger";
+    }
+
+    return "neutral";
   }
 
   function viewProperty(id) {
-    if (!id) return;
-    window.location.hash = `property/${id}`;
+    if (!id) {
+      return;
+    }
+
+    window.location.hash =
+      `property/${id}`;
   }
 
   function editProperty(id) {
-    if (!id) return;
-    window.location.hash = `edit-property/${id}`;
+    if (!id) {
+      return;
+    }
+
+    window.location.hash =
+      `edit-property/${id}`;
   }
 
-  function postProperty() {
-    window.location.hash = "post-property";
+  function addProperty() {
+    window.location.hash =
+      "post-property";
   }
 
-  async function handleDelete(id) {
-    if (!id) return;
+  function openEnquiries() {
+    window.location.hash =
+      "my-enquiries";
+  }
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this property?"
-    );
+  function openFavorites() {
+    window.location.hash =
+      "favorites";
+  }
 
-    if (!confirmed) return;
+  function openProfile() {
+    window.location.hash =
+      "profile";
+  }
+
+  async function removeProperty(id) {
+    if (!id) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        "Are you sure you want to delete this property?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
 
     try {
-      setDeleting(id);
-
       await deleteProperty(id);
 
-      setProperties((previous) =>
-        previous.filter(
-          (property) => property.id !== id
+      setProperties((current) =>
+        current.filter(
+          (property) =>
+            property.id !== id
         )
       );
-    } catch (error) {
-      console.error(
-        "Delete property error:",
-        error
-      );
 
-      window.alert(
+      setMessage(
+        "Property deleted successfully."
+      );
+    } catch (error) {
+      setMessage(
         error?.message ||
           "Unable to delete property."
       );
-    } finally {
-      setDeleting(null);
     }
   }
 
-  function statusClass(status) {
-    const value = String(
-      status || "active"
-    ).toLowerCase();
+  function contactEnquiry(enquiry) {
+    const phone = String(
+      enquiry?.phone ||
+        enquiry?.mobile ||
+        ""
+    ).replace(/\D/g, "");
 
-    if (value === "sold") return "sold";
-    if (value === "pending") return "pending";
+    if (!phone) {
+      window.alert(
+        "Customer phone number is not available."
+      );
+      return;
+    }
 
-    return "active";
+    const customer =
+      enquiry?.name ||
+      "Customer";
+
+    const text =
+      encodeURIComponent(
+        `Hello ${customer}, regarding your property enquiry on PROZPO.`
+      );
+
+    window.open(
+      `https://wa.me/${phone}?text=${text}`,
+      "_blank"
+    );
+  }
+
+  function formatDate(value) {
+    if (!value) {
+      return "Date unavailable";
+    }
+
+    const date =
+      new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return "Date unavailable";
+    }
+
+    return date.toLocaleDateString(
+      "en-IN",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
   }
 
   if (loading) {
@@ -186,19 +398,42 @@ export default function OwnerDashboard() {
       <>
         <style>{`
           .owner-loading {
-            min-height: 70vh;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
-            font-weight: 800;
-            color: #475569;
             background: #f8fafc;
+            color: #475569;
+            font-family: Inter, system-ui, sans-serif;
+          }
+
+          .owner-loading-box {
+            text-align: center;
+            font-weight: 800;
+          }
+
+          .owner-spinner {
+            width: 42px;
+            height: 42px;
+            margin: 0 auto 14px;
+            border: 4px solid #dbeafe;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: ownerSpin .8s linear infinite;
+          }
+
+          @keyframes ownerSpin {
+            to {
+              transform: rotate(360deg);
+            }
           }
         `}</style>
 
         <div className="owner-loading">
-          Loading Owner Dashboard...
+          <div className="owner-loading-box">
+            <div className="owner-spinner"></div>
+            Loading Owner Dashboard...
+          </div>
         </div>
       </>
     );
@@ -209,18 +444,27 @@ export default function OwnerDashboard() {
       <style>{`
         .owner-page {
           min-height: 100vh;
-          padding: 32px 18px 70px;
+          padding: 28px 18px 80px;
           background:
             radial-gradient(
               circle at top left,
-              rgba(37,99,235,.08),
+              rgba(37,99,235,.10),
               transparent 32%
             ),
             #f8fafc;
+          color: #0f172a;
+          font-family:
+            Inter,
+            system-ui,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            sans-serif;
         }
 
         .owner-container {
-          max-width: 1250px;
+          width: 100%;
+          max-width: 1280px;
           margin: 0 auto;
         }
 
@@ -229,57 +473,75 @@ export default function OwnerDashboard() {
           justify-content: space-between;
           align-items: center;
           gap: 20px;
-          margin-bottom: 25px;
-          padding: 28px;
-          border-radius: 22px;
+          padding: 30px;
+          margin-bottom: 22px;
+          border-radius: 24px;
           color: white;
           background:
             linear-gradient(
               135deg,
               #0f172a,
-              #1d4ed8
+              #2563eb
             );
           box-shadow:
-            0 18px 45px rgba(15,23,42,.15);
+            0 20px 55px
+            rgba(37,99,235,.18);
         }
 
         .owner-hero h1 {
-          margin: 0 0 7px;
-          font-size: clamp(27px, 4vw, 38px);
-          font-weight: 900;
+          margin: 0 0 8px;
+          font-size: clamp(
+            28px,
+            4vw,
+            42px
+          );
+          font-weight: 950;
+          line-height: 1.1;
         }
 
         .owner-hero p {
           margin: 0;
+          max-width: 680px;
           color: #dbeafe;
           font-size: 14px;
+          line-height: 1.6;
         }
 
-        .owner-post-btn {
+        .owner-actions {
+          display: flex;
+          gap: 8px;
+        }
+
+        .owner-btn {
+          min-height: 44px;
+          padding: 12px 17px;
           border: 0;
-          padding: 14px 19px;
-          border-radius: 11px;
+          border-radius: 10px;
           background: white;
           color: #1d4ed8;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 900;
           cursor: pointer;
           white-space: nowrap;
         }
 
-        .owner-post-btn:hover {
-          background: #eff6ff;
+        .owner-btn.secondary {
+          border: 1px solid
+            rgba(255,255,255,.25);
+          background:
+            rgba(255,255,255,.12);
+          color: white;
         }
 
         .owner-tabs {
           display: flex;
-          gap: 8px;
+          gap: 7px;
           overflow-x: auto;
-          margin-bottom: 22px;
           padding: 5px;
+          margin-bottom: 22px;
+          border: 1px solid #e2e8f0;
           border-radius: 13px;
           background: white;
-          border: 1px solid #e2e8f0;
         }
 
         .owner-tab {
@@ -288,8 +550,8 @@ export default function OwnerDashboard() {
           border-radius: 9px;
           background: transparent;
           color: #64748b;
-          font-size: 13px;
-          font-weight: 850;
+          font-size: 12px;
+          font-weight: 900;
           cursor: pointer;
           white-space: nowrap;
         }
@@ -303,39 +565,51 @@ export default function OwnerDashboard() {
           display: grid;
           grid-template-columns:
             repeat(5, minmax(0, 1fr));
-          gap: 15px;
-          margin-bottom: 25px;
+          gap: 14px;
+          margin-bottom: 22px;
         }
 
         .owner-stat {
-          padding: 20px;
+          padding: 18px;
           border: 1px solid #e2e8f0;
           border-radius: 17px;
           background: white;
           box-shadow:
-            0 7px 25px rgba(15,23,42,.05);
+            0 8px 25px
+            rgba(15,23,42,.05);
+        }
+
+        .owner-stat-icon {
+          margin-bottom: 7px;
+          font-size: 21px;
         }
 
         .owner-stat-label {
           color: #64748b;
-          font-size: 12px;
-          font-weight: 750;
+          font-size: 10px;
+          font-weight: 900;
+          text-transform: uppercase;
         }
 
         .owner-stat-value {
-          margin-top: 7px;
+          margin-top: 5px;
           color: #0f172a;
-          font-size: 27px;
+          font-size: 26px;
           font-weight: 950;
         }
 
         .owner-section {
           padding: 23px;
           border: 1px solid #e2e8f0;
-          border-radius: 19px;
+          border-radius: 20px;
           background: white;
           box-shadow:
-            0 8px 28px rgba(15,23,42,.05);
+            0 8px 28px
+            rgba(15,23,42,.05);
+        }
+
+        .owner-section + .owner-section {
+          margin-top: 22px;
         }
 
         .owner-section-head {
@@ -350,46 +624,74 @@ export default function OwnerDashboard() {
           margin: 0;
           color: #0f172a;
           font-size: 21px;
-          font-weight: 900;
+          font-weight: 950;
+        }
+
+        .owner-section-head p {
+          margin: 5px 0 0;
+          color: #64748b;
+          font-size: 12px;
         }
 
         .owner-search {
-          width: 280px;
+          width: 300px;
           max-width: 100%;
-          padding: 11px 13px;
+          min-height: 42px;
+          padding: 10px 13px;
           border: 1px solid #dbe3ee;
           border-radius: 10px;
           outline: none;
+          color: #0f172a;
           font-size: 13px;
         }
 
         .owner-search:focus {
           border-color: #2563eb;
           box-shadow:
-            0 0 0 3px rgba(37,99,235,.08);
+            0 0 0 3px
+            rgba(37,99,235,.09);
         }
 
-        .owner-properties {
+        .owner-message {
+          margin-bottom: 20px;
+          padding: 12px 15px;
+          border-radius: 10px;
+          background: #eff6ff;
+          color: #1d4ed8;
+          font-size: 13px;
+          font-weight: 800;
+          text-align: center;
+        }
+
+        .owner-grid {
           display: grid;
           grid-template-columns:
             repeat(3, minmax(0, 1fr));
-          gap: 18px;
+          gap: 17px;
         }
 
-        .owner-property {
+        .owner-card {
           overflow: hidden;
           border: 1px solid #e2e8f0;
-          border-radius: 15px;
+          border-radius: 16px;
           background: white;
+          transition: .2s;
         }
 
-        .owner-property-image {
+        .owner-card:hover {
+          transform: translateY(-3px);
+          box-shadow:
+            0 15px 35px
+            rgba(15,23,42,.09);
+        }
+
+        .owner-card-image {
           position: relative;
           height: 175px;
           background: #e2e8f0;
         }
 
-        .owner-property-image img {
+        .owner-card-image img {
           width: 100%;
           height: 100%;
           display: block;
@@ -398,12 +700,12 @@ export default function OwnerDashboard() {
 
         .owner-status {
           position: absolute;
-          top: 11px;
-          left: 11px;
-          padding: 5px 9px;
+          top: 10px;
+          left: 10px;
+          padding: 6px 9px;
           border-radius: 20px;
-          font-size: 10px;
-          font-weight: 900;
+          font-size: 9px;
+          font-weight: 950;
           text-transform: uppercase;
         }
 
@@ -412,104 +714,141 @@ export default function OwnerDashboard() {
           color: #166534;
         }
 
-        .owner-status.sold {
-          background: #fee2e2;
-          color: #991b1b;
-        }
-
         .owner-status.pending {
           background: #fef3c7;
           color: #92400e;
         }
 
-        .owner-property-body {
+        .owner-status.danger {
+          background: #fee2e2;
+          color: #991b1b;
+        }
+
+        .owner-status.neutral {
+          background: #f1f5f9;
+          color: #475569;
+        }
+
+        .owner-card-body {
           padding: 15px;
         }
 
-        .owner-property-title {
+        .owner-card-body h3 {
           margin: 0 0 6px;
           color: #0f172a;
           font-size: 16px;
-          font-weight: 900;
+          font-weight: 950;
           line-height: 1.35;
         }
 
-        .owner-property-location {
-          margin: 0 0 10px;
+        .owner-location {
+          margin: 0 0 8px;
           color: #64748b;
-          font-size: 12px;
-        }
-
-        .owner-property-price {
-          color: #2563eb;
-          font-size: 18px;
-          font-weight: 950;
-        }
-
-        .owner-property-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 7px;
-          margin: 12px 0;
+          font-size: 11px;
+          line-height: 1.5;
         }
 
         .owner-meta {
-          padding: 5px 7px;
-          border-radius: 7px;
-          background: #f1f5f9;
-          color: #475569;
-          font-size: 10px;
-          font-weight: 750;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-bottom: 11px;
         }
 
-        .owner-actions {
+        .owner-chip {
+          padding: 5px 7px;
+          border-radius: 7px;
+          background: #eff6ff;
+          color: #1d4ed8;
+          font-size: 9px;
+          font-weight: 900;
+        }
+
+        .owner-price {
+          margin-bottom: 12px;
+          color: #2563eb;
+          font-size: 17px;
+          font-weight: 950;
+        }
+
+        .owner-card-actions {
           display: grid;
           grid-template-columns:
             repeat(3, 1fr);
-          gap: 7px;
-          margin-top: 12px;
+          gap: 6px;
         }
 
-        .owner-action {
-          padding: 9px 6px;
-          border: 1px solid #dbe3ee;
+        .owner-card-btn {
+          min-height: 35px;
+          border: 0;
           border-radius: 8px;
-          background: white;
-          color: #334155;
-          font-size: 11px;
-          font-weight: 850;
           cursor: pointer;
+          font-size: 10px;
+          font-weight: 900;
         }
 
-        .owner-action:hover {
-          border-color: #2563eb;
-          color: #2563eb;
+        .owner-view {
+          background: #eff6ff;
+          color: #1d4ed8;
         }
 
-        .owner-action.danger:hover {
-          border-color: #dc2626;
-          color: #dc2626;
+        .owner-edit {
+          background: #f1f5f9;
+          color: #334155;
         }
 
-        .owner-empty {
-          padding: 50px 20px;
-          text-align: center;
-          color: #64748b;
+        .owner-delete {
+          background: #fee2e2;
+          color: #b91c1c;
         }
 
-        .owner-empty-icon {
-          margin-bottom: 10px;
-          font-size: 40px;
+        .owner-overview {
+          display: grid;
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+          gap: 22px;
         }
 
-        .owner-empty h3 {
-          margin: 0 0 7px;
+        .owner-mini-list {
+          display: grid;
+          gap: 10px;
+        }
+
+        .owner-mini-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          padding: 13px;
+          border: 1px solid #edf2f7;
+          border-radius: 10px;
+          background: #f8fafc;
+        }
+
+        .owner-mini-item strong {
           color: #0f172a;
+          font-size: 12px;
+        }
+
+        .owner-mini-item span {
+          color: #64748b;
+          font-size: 10px;
+        }
+
+        .owner-mini-number {
+          min-width: 34px;
+          padding: 6px 8px;
+          border-radius: 20px;
+          background: #dbeafe;
+          color: #1d4ed8;
+          text-align: center;
+          font-size: 10px;
+          font-weight: 950;
         }
 
         .owner-enquiries {
           display: grid;
-          gap: 12px;
+          gap: 10px;
         }
 
         .owner-enquiry {
@@ -517,42 +856,135 @@ export default function OwnerDashboard() {
           justify-content: space-between;
           align-items: center;
           gap: 15px;
-          padding: 15px;
+          padding: 14px;
           border: 1px solid #e2e8f0;
-          border-radius: 12px;
+          border-radius: 11px;
         }
 
         .owner-enquiry h3 {
           margin: 0 0 5px;
           color: #0f172a;
-          font-size: 14px;
+          font-size: 13px;
+          font-weight: 950;
         }
 
         .owner-enquiry p {
-          margin: 0;
+          margin: 0 0 3px;
           color: #64748b;
-          font-size: 12px;
+          font-size: 11px;
+        }
+
+        .owner-enquiry-actions {
+          display: flex;
+          align-items: center;
+          gap: 7px;
         }
 
         .owner-enquiry-status {
           padding: 6px 9px;
           border-radius: 20px;
-          background: #eff6ff;
-          color: #1d4ed8;
-          font-size: 10px;
-          font-weight: 900;
+          background: #fef3c7;
+          color: #92400e;
+          font-size: 9px;
+          font-weight: 950;
           white-space: nowrap;
         }
 
-        @media (max-width: 1050px) {
+        .owner-wa {
+          border: 0;
+          padding: 8px 11px;
+          border-radius: 8px;
+          background: #16a34a;
+          color: white;
+          font-size: 10px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .owner-quick {
+          display: grid;
+          grid-template-columns:
+            repeat(4, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .owner-quick-btn {
+          min-height: 100px;
+          padding: 16px;
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+          background: white;
+          color: #0f172a;
+          text-align: left;
+          cursor: pointer;
+          transition: .2s;
+        }
+
+        .owner-quick-btn:hover {
+          transform: translateY(-2px);
+          border-color: #bfdbfe;
+          background: #eff6ff;
+        }
+
+        .owner-quick-icon {
+          margin-bottom: 8px;
+          font-size: 24px;
+        }
+
+        .owner-quick-title {
+          font-size: 12px;
+          font-weight: 950;
+        }
+
+        .owner-quick-text {
+          margin-top: 3px;
+          color: #64748b;
+          font-size: 10px;
+        }
+
+        .owner-empty {
+          padding: 45px 20px;
+          border: 1px dashed #cbd5e1;
+          border-radius: 14px;
+          color: #64748b;
+          text-align: center;
+        }
+
+        .owner-empty-icon {
+          margin-bottom: 9px;
+          font-size: 42px;
+        }
+
+        .owner-empty h3 {
+          margin: 0 0 6px;
+          color: #0f172a;
+        }
+
+        .owner-empty p {
+          margin: 0;
+          font-size: 13px;
+        }
+
+        @media (max-width: 1100px) {
           .owner-stats {
             grid-template-columns:
               repeat(3, minmax(0, 1fr));
           }
 
-          .owner-properties {
+          .owner-grid {
             grid-template-columns:
               repeat(2, minmax(0, 1fr));
+          }
+
+          .owner-quick {
+            grid-template-columns:
+              repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 800px) {
+          .owner-overview {
+            grid-template-columns: 1fr;
           }
         }
 
@@ -567,8 +999,12 @@ export default function OwnerDashboard() {
             padding: 22px;
           }
 
-          .owner-post-btn {
+          .owner-actions {
             width: 100%;
+          }
+
+          .owner-btn {
+            flex: 1;
           }
 
           .owner-stats {
@@ -589,7 +1025,7 @@ export default function OwnerDashboard() {
             width: 100%;
           }
 
-          .owner-properties {
+          .owner-grid {
             grid-template-columns: 1fr;
           }
 
@@ -597,12 +1033,36 @@ export default function OwnerDashboard() {
             align-items: flex-start;
             flex-direction: column;
           }
+
+          .owner-enquiry-actions {
+            width: 100%;
+            justify-content: space-between;
+          }
+        }
+
+        @media (max-width: 450px) {
+          .owner-stats {
+            grid-template-columns: 1fr;
+          }
+
+          .owner-actions {
+            flex-direction: column;
+          }
+
+          .owner-quick {
+            grid-template-columns: 1fr;
+          }
+
+          .owner-card-actions {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
 
       <main className="owner-page">
         <div className="owner-container">
 
+          {/* HERO */}
           <section className="owner-hero">
             <div>
               <h1>
@@ -610,48 +1070,72 @@ export default function OwnerDashboard() {
               </h1>
 
               <p>
-                Manage your properties,
-                enquiries and listings from
-                one place.
+                Manage your properties, track
+                enquiries, monitor listing status
+                and manage your PROZPO account
+                from one place.
               </p>
             </div>
 
-            <button
-              className="owner-post-btn"
-              onClick={postProperty}
-            >
-              + Post New Property
-            </button>
+            <div className="owner-actions">
+              <button
+                type="button"
+                className="owner-btn"
+                onClick={addProperty}
+              >
+                + Post Property
+              </button>
+
+              <button
+                type="button"
+                className="owner-btn secondary"
+                onClick={loadDashboard}
+              >
+                ↻ Refresh
+              </button>
+            </div>
           </section>
 
+          {message && (
+            <div className="owner-message">
+              {message}
+            </div>
+          )}
+
+          {/* TABS */}
           <div className="owner-tabs">
             <button
+              type="button"
               className={`owner-tab ${
                 activeTab === "overview"
                   ? "active"
                   : ""
               }`}
-              onClick={() =>
-                setActiveTab("overview")
-              }
+              onClick={() => {
+                setActiveTab("overview");
+                setSearch("");
+              }}
             >
               Overview
             </button>
 
             <button
+              type="button"
               className={`owner-tab ${
                 activeTab === "properties"
                   ? "active"
                   : ""
               }`}
-              onClick={() =>
-                setActiveTab("properties")
-              }
+              onClick={() => {
+                setActiveTab("properties");
+                setSearch("");
+              }}
             >
               My Properties
             </button>
 
             <button
+              type="button"
               className={`owner-tab ${
                 activeTab === "enquiries"
                   ? "active"
@@ -665,69 +1149,556 @@ export default function OwnerDashboard() {
             </button>
           </div>
 
+          {/* STATS */}
           <section className="owner-stats">
-
             <div className="owner-stat">
+              <div className="owner-stat-icon">
+                🏠
+              </div>
+
               <div className="owner-stat-label">
                 Total Properties
               </div>
+
               <div className="owner-stat-value">
-                {stats.total}
+                {stats.totalProperties}
               </div>
             </div>
 
             <div className="owner-stat">
-              <div className="owner-stat-label">
-                Active Listings
+              <div className="owner-stat-icon">
+                🟢
               </div>
+
+              <div className="owner-stat-label">
+                Active
+              </div>
+
               <div className="owner-stat-value">
-                {stats.active}
+                {stats.activeProperties}
               </div>
             </div>
 
             <div className="owner-stat">
-              <div className="owner-stat-label">
-                Sold
+              <div className="owner-stat-icon">
+                ⏳
               </div>
+
+              <div className="owner-stat-label">
+                Pending
+              </div>
+
               <div className="owner-stat-value">
-                {stats.sold}
+                {stats.pendingProperties}
               </div>
             </div>
 
             <div className="owner-stat">
-              <div className="owner-stat-label">
-                Total Enquiries
+              <div className="owner-stat-icon">
+                📩
               </div>
+
+              <div className="owner-stat-label">
+                Enquiries
+              </div>
+
               <div className="owner-stat-value">
                 {stats.enquiries}
               </div>
             </div>
 
             <div className="owner-stat">
-              <div className="owner-stat-label">
-                Pending Enquiries
+              <div className="owner-stat-icon">
+                ❤️
               </div>
+
+              <div className="owner-stat-label">
+                Favorites
+              </div>
+
               <div className="owner-stat-value">
-                {stats.pending}
+                {stats.favorites}
               </div>
             </div>
-
           </section>
 
-          {(activeTab === "overview" ||
-            activeTab === "properties") && (
-            <section className="owner-section">
+          {/* OVERVIEW */}
+          {activeTab === "overview" && (
+            <>
+              <div className="owner-overview">
 
+                <section className="owner-section">
+                  <div className="owner-section-head">
+                    <div>
+                      <h2>
+                        Property Summary
+                      </h2>
+
+                      <p>
+                        Current listing performance
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="owner-mini-list">
+
+                    <div className="owner-mini-item">
+                      <div>
+                        <strong>
+                          Active Properties
+                        </strong>
+
+                        <br />
+
+                        <span>
+                          Currently available
+                        </span>
+                      </div>
+
+                      <div className="owner-mini-number">
+                        {stats.activeProperties}
+                      </div>
+                    </div>
+
+                    <div className="owner-mini-item">
+                      <div>
+                        <strong>
+                          Pending Properties
+                        </strong>
+
+                        <br />
+
+                        <span>
+                          Waiting for review
+                        </span>
+                      </div>
+
+                      <div className="owner-mini-number">
+                        {stats.pendingProperties}
+                      </div>
+                    </div>
+
+                    <div className="owner-mini-item">
+                      <div>
+                        <strong>
+                          Sold Properties
+                        </strong>
+
+                        <br />
+
+                        <span>
+                          Completed listings
+                        </span>
+                      </div>
+
+                      <div className="owner-mini-number">
+                        {stats.soldProperties}
+                      </div>
+                    </div>
+
+                    <div className="owner-mini-item">
+                      <div>
+                        <strong>
+                          New Enquiries
+                        </strong>
+
+                        <br />
+
+                        <span>
+                          Need your attention
+                        </span>
+                      </div>
+
+                      <div className="owner-mini-number">
+                        {stats.newEnquiries}
+                      </div>
+                    </div>
+
+                  </div>
+                </section>
+
+                <section className="owner-section">
+                  <div className="owner-section-head">
+                    <div>
+                      <h2>
+                        Quick Actions
+                      </h2>
+
+                      <p>
+                        Frequently used owner tools
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="owner-quick">
+
+                    <button
+                      type="button"
+                      className="owner-quick-btn"
+                      onClick={addProperty}
+                    >
+                      <div className="owner-quick-icon">
+                        ➕
+                      </div>
+
+                      <div className="owner-quick-title">
+                        Post Property
+                      </div>
+
+                      <div className="owner-quick-text">
+                        Add a new listing
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="owner-quick-btn"
+                      onClick={openEnquiries}
+                    >
+                      <div className="owner-quick-icon">
+                        📩
+                      </div>
+
+                      <div className="owner-quick-title">
+                        Enquiries
+                      </div>
+
+                      <div className="owner-quick-text">
+                        View customer leads
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="owner-quick-btn"
+                      onClick={openFavorites}
+                    >
+                      <div className="owner-quick-icon">
+                        ❤️
+                      </div>
+
+                      <div className="owner-quick-title">
+                        Favorites
+                      </div>
+
+                      <div className="owner-quick-text">
+                        Saved properties
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="owner-quick-btn"
+                      onClick={openProfile}
+                    >
+                      <div className="owner-quick-icon">
+                        👤
+                      </div>
+
+                      <div className="owner-quick-title">
+                        Profile
+                      </div>
+
+                      <div className="owner-quick-text">
+                        Manage your account
+                      </div>
+                    </button>
+
+                  </div>
+                </section>
+
+              </div>
+
+              <section className="owner-section">
+                <div className="owner-section-head">
+                  <div>
+                    <h2>
+                      Recent Properties
+                    </h2>
+
+                    <p>
+                      Your latest property listings
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="owner-btn"
+                    style={{
+                      minHeight: "38px",
+                      padding: "9px 14px",
+                      border: "1px solid #dbeafe",
+                      background: "#eff6ff",
+                    }}
+                    onClick={() =>
+                      setActiveTab("properties")
+                    }
+                  >
+                    View All
+                  </button>
+                </div>
+
+                {properties.length === 0 ? (
+                  <div className="owner-empty">
+                    <div className="owner-empty-icon">
+                      🏠
+                    </div>
+
+                    <h3>
+                      No Properties Yet
+                    </h3>
+
+                    <p>
+                      Start by posting your first
+                      property on PROZPO.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="owner-grid">
+                    {properties
+                      .slice(0, 6)
+                      .map(
+                        (property, index) => (
+                          <article
+                            className="owner-card"
+                            key={
+                              property.id ||
+                              `property-${index}`
+                            }
+                          >
+                            <div className="owner-card-image">
+                              <img
+                                src={propertyImage(
+                                  property
+                                )}
+                                alt={
+                                  propertyTitle(
+                                    property
+                                  )
+                                }
+                                loading="lazy"
+                              />
+
+                              <span
+                                className={`owner-status ${propertyStatus(
+                                  property.status
+                                )}`}
+                              >
+                                {property.status ||
+                                  "Active"}
+                              </span>
+                            </div>
+
+                            <div className="owner-card-body">
+                              <h3>
+                                {propertyTitle(
+                                  property
+                                )}
+                              </h3>
+
+                              <p className="owner-location">
+                                📍{" "}
+                                {propertyLocation(
+                                  property
+                                )}
+                              </p>
+
+                              <div className="owner-meta">
+                                {property.property_type && (
+                                  <span className="owner-chip">
+                                    {
+                                      property.property_type
+                                    }
+                                  </span>
+                                )}
+
+                                {property.listing_type && (
+                                  <span className="owner-chip">
+                                    {
+                                      property.listing_type
+                                    }
+                                  </span>
+                                )}
+
+                                {property.area && (
+                                  <span className="owner-chip">
+                                    {property.area}{" "}
+                                    {property.area_unit ||
+                                      "sq yd"}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="owner-price">
+                                {money(
+                                  property.price
+                                )}
+                              </div>
+
+                              <div className="owner-card-actions">
+                                <button
+                                  type="button"
+                                  className="owner-card-btn owner-view"
+                                  onClick={() =>
+                                    viewProperty(
+                                      property.id
+                                    )
+                                  }
+                                >
+                                  View
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="owner-card-btn owner-edit"
+                                  onClick={() =>
+                                    editProperty(
+                                      property.id
+                                    )
+                                  }
+                                >
+                                  Edit
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="owner-card-btn owner-delete"
+                                  onClick={() =>
+                                    removeProperty(
+                                      property.id
+                                    )
+                                  }
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </article>
+                        )
+                      )}
+                  </div>
+                )}
+              </section>
+
+              <section className="owner-section">
+                <div className="owner-section-head">
+                  <div>
+                    <h2>
+                      Recent Enquiries
+                    </h2>
+
+                    <p>
+                      Latest customer interest in
+                      your properties
+                    </p>
+                  </div>
+                </div>
+
+                {enquiries.length === 0 ? (
+                  <div className="owner-empty">
+                    <div className="owner-empty-icon">
+                      📩
+                    </div>
+
+                    <h3>
+                      No Enquiries Yet
+                    </h3>
+
+                    <p>
+                      Customer enquiries will appear
+                      here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="owner-enquiries">
+                    {enquiries
+                      .slice(0, 5)
+                      .map(
+                        (enquiry, index) => (
+                          <div
+                            className="owner-enquiry"
+                            key={
+                              enquiry.id ||
+                              `enquiry-${index}`
+                            }
+                          >
+                            <div>
+                              <h3>
+                                {enquiry.name ||
+                                  enquiry.full_name ||
+                                  "Customer"}
+                              </h3>
+
+                              <p>
+                                Property:{" "}
+                                {enquiry.property_title ||
+                                  enquiry.title ||
+                                  "Property Enquiry"}
+                              </p>
+
+                              <p>
+                                Phone:{" "}
+                                {enquiry.phone ||
+                                  "Not provided"}
+                              </p>
+
+                              <p>
+                                Received:{" "}
+                                {formatDate(
+                                  enquiry.created_at
+                                )}
+                              </p>
+                            </div>
+
+                            <div className="owner-enquiry-actions">
+                              <span className="owner-enquiry-status">
+                                {enquiry.status ||
+                                  "New"}
+                              </span>
+
+                              <button
+                                type="button"
+                                className="owner-wa"
+                                onClick={() =>
+                                  contactEnquiry(
+                                    enquiry
+                                  )
+                                }
+                              >
+                                WhatsApp
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      )}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+
+          {/* PROPERTIES */}
+          {activeTab === "properties" && (
+            <section className="owner-section">
               <div className="owner-section-head">
-                <h2>
-                  My Properties
-                </h2>
+                <div>
+                  <h2>
+                    My Properties
+                  </h2>
+
+                  <p>
+                    Manage all your property listings
+                  </p>
+                </div>
 
                 <input
+                  type="search"
                   className="owner-search"
                   value={search}
-                  onChange={(e) =>
-                    setSearch(e.target.value)
+                  onChange={(event) =>
+                    setSearch(
+                      event.target.value
+                    )
                   }
                   placeholder="Search your properties..."
                 />
@@ -736,96 +1707,253 @@ export default function OwnerDashboard() {
               {filteredProperties.length === 0 ? (
                 <div className="owner-empty">
                   <div className="owner-empty-icon">
-                    🏠
+                    🔎
                   </div>
 
                   <h3>
-                    No properties found
+                    No Properties Found
                   </h3>
 
                   <p>
-                    Start by posting your first
-                    property on PROZPO.
+                    Try another search term or post
+                    a new property.
                   </p>
                 </div>
               ) : (
-                <div className="owner-properties">
-
+                <div className="owner-grid">
                   {filteredProperties.map(
-                    (property) => (
+                    (property, index) => (
                       <article
-                        className="owner-property"
-                        key={property.id}
+                        className="owner-card"
+                        key={
+                          property.id ||
+                          `property-${index}`
+                        }
                       >
-
-                        <div className="owner-property-image">
-
+                        <div className="owner-card-image">
                           <img
                             src={propertyImage(
                               property
                             )}
                             alt={
-                              property.title ||
-                              "Property"
+                              propertyTitle(
+                                property
+                              )
                             }
                             loading="lazy"
                           />
 
                           <span
-                            className={`owner-status ${statusClass(
+                            className={`owner-status ${propertyStatus(
                               property.status
                             )}`}
                           >
                             {property.status ||
                               "Active"}
                           </span>
-
                         </div>
 
-                        <div className="owner-property-body">
-
-                          <h3 className="owner-property-title">
-                            {property.title ||
-                              "Untitled Property"}
+                        <div className="owner-card-body">
+                          <h3>
+                            {propertyTitle(
+                              property
+                            )}
                           </h3>
 
-                          <p className="owner-property-location">
+                          <p className="owner-location">
                             📍{" "}
-                            {property.location ||
-                              property.city ||
-                              "Location not available"}
+                            {propertyLocation(
+                              property
+                            )}
                           </p>
 
-                          <div className="owner-property-price">
+                          <div className="owner-meta">
+                            {property.property_type && (
+                              <span className="owner-chip">
+                                {
+                                  property.property_type
+                                }
+                              </span>
+                            )}
+
+                            {property.listing_type && (
+                              <span className="owner-chip">
+                                {
+                                  property.listing_type
+                                }
+                              </span>
+                            )}
+
+                            {property.bedrooms && (
+                              <span className="owner-chip">
+                                {property.bedrooms} BHK
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="owner-price">
                             {money(
                               property.price
                             )}
                           </div>
 
-                          <div className="owner-property-meta">
+                          <div className="owner-card-actions">
+                            <button
+                              type="button"
+                              className="owner-card-btn owner-view"
+                              onClick={() =>
+                                viewProperty(
+                                  property.id
+                                )
+                              }
+                            >
+                              View
+                            </button>
 
-                            {property.property_type && (
-                              <span className="owner-meta">
-                                {property.property_type}
-                              </span>
+                            <button
+                              type="button"
+                              className="owner-card-btn owner-edit"
+                              onClick={() =>
+                                editProperty(
+                                  property.id
+                                )
+                              }
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              className="owner-card-btn owner-delete"
+                              onClick={() =>
+                                removeProperty(
+                                  property.id
+                                )
+                              }
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ENQUIRIES */}
+          {activeTab === "enquiries" && (
+            <section className="owner-section">
+              <div className="owner-section-head">
+                <div>
+                  <h2>
+                    Property Enquiries
+                  </h2>
+
+                  <p>
+                    Manage customer leads and enquiries
+                  </p>
+                </div>
+              </div>
+
+              {enquiries.length === 0 ? (
+                <div className="owner-empty">
+                  <div className="owner-empty-icon">
+                    📩
+                  </div>
+
+                  <h3>
+                    No Enquiries Yet
+                  </h3>
+
+                  <p>
+                    Customer enquiries will appear
+                    here when someone contacts you.
+                  </p>
+                </div>
+              ) : (
+                <div className="owner-enquiries">
+                  {enquiries.map(
+                    (enquiry, index) => (
+                      <div
+                        className="owner-enquiry"
+                        key={
+                          enquiry.id ||
+                          `enquiry-${index}`
+                        }
+                      >
+                        <div>
+                          <h3>
+                            {enquiry.name ||
+                              enquiry.full_name ||
+                              "Customer"}
+                          </h3>
+
+                          <p>
+                            Property:{" "}
+                            {enquiry.property_title ||
+                              enquiry.title ||
+                              "Property Enquiry"}
+                          </p>
+
+                          <p>
+                            Email:{" "}
+                            {enquiry.email ||
+                              "Not provided"}
+                          </p>
+
+                          <p>
+                            Phone:{" "}
+                            {enquiry.phone ||
+                              enquiry.mobile ||
+                              "Not provided"}
+                          </p>
+
+                          {enquiry.message && (
+                            <p>
+                              Message:{" "}
+                              {enquiry.message}
+                            </p>
+                          )}
+
+                          <p>
+                            Received:{" "}
+                            {formatDate(
+                              enquiry.created_at
                             )}
+                          </p>
+                        </div>
 
-                            {property.bedrooms && (
-                              <span className="owner-meta">
-                                🛏{" "}
-                                {property.bedrooms} Beds
-                              </span>
-                            )}
+                        <div className="owner-enquiry-actions">
+                          <span className="owner-enquiry-status">
+                            {enquiry.status ||
+                              "New"}
+                          </span>
 
-                            {property.bathrooms && (
-                              <span className="owner-meta">
-                                🛁{" "}
-                                {property.bathrooms} Baths
-                              </span>
-                            )}
+                          <button
+                            type="button"
+                            className="owner-wa"
+                            onClick={() =>
+                              contactEnquiry(
+                                enquiry
+                              )
+                            }
+                          >
+                            WhatsApp
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </section>
+          )}
 
-                            {property.area && (
-                              <span className="owner-meta">
-                                📐 {property.area}
-                              </span>
-                            )
+        </div>
+      </main>
+    </>
+  );
+}
