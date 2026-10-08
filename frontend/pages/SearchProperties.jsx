@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getProperties } from "../src/api";
 
-const defaultFilters = {
+const DEFAULT_FILTERS = {
   keyword: "",
   listingType: "",
   propertyType: "",
@@ -16,9 +16,44 @@ const defaultFilters = {
   possession: "",
 };
 
+function extractNumber(value) {
+  const number = Number(
+    String(value ?? "").replace(/[^0-9.]/g, "")
+  );
+
+  return Number.isFinite(number) ? number : 0;
+}
+
+function money(value) {
+  const amount = Number(value);
+
+  if (!amount) return "Price on Request";
+
+  if (amount >= 10000000) {
+    return `₹${(amount / 10000000).toFixed(2)} Cr`;
+  }
+
+  if (amount >= 100000) {
+    return `₹${(amount / 100000).toFixed(2)} L`;
+  }
+
+  return `₹${amount.toLocaleString("en-IN")}`;
+}
+
+function getImage(property) {
+  return (
+    property?.image_url ||
+    property?.image ||
+    property?.thumbnail ||
+    "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1000&q=80"
+  );
+}
+
 export default function SearchProperties() {
   const [properties, setProperties] = useState([]);
-  const [filters, setFilters] = useState(defaultFilters);
+  const [filters, setFilters] = useState({
+    ...DEFAULT_FILTERS,
+  });
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(true);
   const [sortBy, setSortBy] = useState("newest");
@@ -35,15 +70,11 @@ export default function SearchProperties() {
     setFilters((previous) => ({
       ...previous,
       keyword: params.get("q") || "",
-      listingType:
-        params.get("listing_type") || "",
-      propertyType:
-        params.get("property_type") || "",
+      listingType: params.get("listing_type") || "",
+      propertyType: params.get("property_type") || "",
       city: params.get("city") || "",
-      minPrice:
-        params.get("min_price") || "",
-      maxPrice:
-        params.get("max_price") || "",
+      minPrice: params.get("min_price") || "",
+      maxPrice: params.get("max_price") || "",
     }));
   }, []);
 
@@ -51,20 +82,24 @@ export default function SearchProperties() {
     try {
       setLoading(true);
 
-      const response =
-        await getProperties();
+      const response = await getProperties();
 
-      setProperties(
-        response?.properties ||
-          response?.data ||
-          []
-      );
+      let data = [];
+
+      if (Array.isArray(response)) {
+        data = response;
+      } else if (Array.isArray(response?.properties)) {
+        data = response.properties;
+      } else if (Array.isArray(response?.data)) {
+        data = response.data;
+      }
+
+      setProperties(data);
     } catch (error) {
       console.error(
         "Search properties error:",
         error
       );
-
       setProperties([]);
     } finally {
       setLoading(false);
@@ -79,7 +114,9 @@ export default function SearchProperties() {
   }
 
   function clearFilters() {
-    setFilters(defaultFilters);
+    setFilters({
+      ...DEFAULT_FILTERS,
+    });
   }
 
   const cities = useMemo(() => {
@@ -89,11 +126,14 @@ export default function SearchProperties() {
           .map(
             (property) =>
               property.city ||
-              property.location
+              property.location ||
+              ""
           )
           .filter(Boolean)
       ),
-    ].sort();
+    ].sort((a, b) =>
+      String(a).localeCompare(String(b))
+    );
   }, [properties]);
 
   const propertyTypes = useMemo(() => {
@@ -102,20 +142,23 @@ export default function SearchProperties() {
         properties
           .map(
             (property) =>
-              property.property_type
+              property.property_type || ""
           )
           .filter(Boolean)
       ),
-    ].sort();
+    ].sort((a, b) =>
+      String(a).localeCompare(String(b))
+    );
   }, [properties]);
 
   const filteredProperties = useMemo(() => {
     let result = [...properties];
 
-    const keyword =
-      filters.keyword
-        .toLowerCase()
-        .trim();
+    const keyword = String(
+      filters.keyword || ""
+    )
+      .toLowerCase()
+      .trim();
 
     if (keyword) {
       result = result.filter((property) =>
@@ -129,6 +172,7 @@ export default function SearchProperties() {
           property.description,
           property.bedrooms,
           property.bathrooms,
+          property.furnishing,
         ]
           .filter(Boolean)
           .join(" ")
@@ -138,37 +182,46 @@ export default function SearchProperties() {
     }
 
     if (filters.listingType) {
-      result = result.filter(
-        (property) =>
-          String(
-            property.listing_type || ""
-          ).toLowerCase() ===
-          filters.listingType.toLowerCase()
+      const wanted =
+        filters.listingType.toLowerCase();
+
+      result = result.filter((property) =>
+        String(
+          property.listing_type || ""
+        )
+          .toLowerCase()
+          .includes(wanted)
       );
     }
 
     if (filters.propertyType) {
-      result = result.filter(
-        (property) =>
-          String(
-            property.property_type || ""
-          ).toLowerCase() ===
-          filters.propertyType.toLowerCase()
+      const wanted =
+        filters.propertyType.toLowerCase();
+
+      result = result.filter((property) =>
+        String(
+          property.property_type || ""
+        )
+          .toLowerCase()
+          .includes(wanted)
       );
     }
 
     if (filters.city) {
-      result = result.filter((property) => {
-        const value = String(
-          property.city ||
-            property.location ||
-            ""
-        ).toLowerCase();
+      const wanted =
+        filters.city.toLowerCase().trim();
 
-        return value.includes(
-          filters.city.toLowerCase()
-        );
-      });
+      result = result.filter((property) =>
+        [
+          property.city,
+          property.location,
+          property.state,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(wanted)
+      );
     }
 
     if (filters.minPrice) {
@@ -190,22 +243,16 @@ export default function SearchProperties() {
     if (filters.minArea) {
       result = result.filter(
         (property) =>
-          Number(
-            String(
-              property.area || 0
-            ).replace(/[^0-9.]/g, "")
-          ) >= Number(filters.minArea)
+          extractNumber(property.area) >=
+          Number(filters.minArea)
       );
     }
 
     if (filters.maxArea) {
       result = result.filter(
         (property) =>
-          Number(
-            String(
-              property.area || 0
-            ).replace(/[^0-9.]/g, "")
-          ) <= Number(filters.maxArea)
+          extractNumber(property.area) <=
+          Number(filters.maxArea)
       );
     }
 
@@ -226,22 +273,26 @@ export default function SearchProperties() {
     }
 
     if (filters.furnishing) {
+      const wanted =
+        filters.furnishing.toLowerCase();
+
       result = result.filter(
         (property) =>
           String(
             property.furnishing || ""
-          ).toLowerCase() ===
-          filters.furnishing.toLowerCase()
+          ).toLowerCase() === wanted
       );
     }
 
     if (filters.possession) {
+      const wanted =
+        filters.possession.toLowerCase();
+
       result = result.filter(
         (property) =>
           String(
             property.possession || ""
-          ).toLowerCase() ===
-          filters.possession.toLowerCase()
+          ).toLowerCase() === wanted
       );
     }
 
@@ -270,61 +321,29 @@ export default function SearchProperties() {
     }
 
     if (sortBy === "newest") {
-      result.sort(
-        (a, b) =>
-          new Date(
-            b.created_at || 0
-          ).getTime() -
-          new Date(
-            a.created_at || 0
-          ).getTime()
-      );
+      result.sort((a, b) => {
+        const dateA = new Date(
+          a.created_at || 0
+        ).getTime();
+
+        const dateB = new Date(
+          b.created_at || 0
+        ).getTime();
+
+        return dateB - dateA;
+      });
     }
 
     return result;
   }, [properties, filters, sortBy]);
 
-  function extractNumber(value) {
-    return Number(
-      String(value || 0).replace(
-        /[^0-9.]/g,
-        ""
-      )
-    );
-  }
-
-  function money(value) {
-    const amount = Number(value);
-
-    if (!amount) {
-      return "Price on Request";
-    }
-
-    if (amount >= 10000000) {
-      return `₹${(
-        amount / 10000000
-      ).toFixed(2)} Cr`;
-    }
-
-    if (amount >= 100000) {
-      return `₹${(
-        amount / 100000
-      ).toFixed(2)} L`;
-    }
-
-    return `₹${amount.toLocaleString(
-      "en-IN"
-    )}`;
-  }
-
-  function imageFor(property) {
-    return (
-      property.image_url ||
-      property.image ||
-      property.thumbnail ||
-      "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=900&q=80"
-    );
-  }
+  const activeFilterCount = useMemo(() => {
+    return Object.entries(filters).filter(
+      ([key, value]) =>
+        key !== "keyword" &&
+        String(value || "").trim()
+    ).length;
+  }, [filters]);
 
   function viewProperty(id) {
     if (!id) return;
@@ -338,13 +357,13 @@ export default function SearchProperties() {
       "post-property";
   }
 
-  function activeFilterCount() {
-    return Object.entries(filters)
-      .filter(
-        ([key, value]) =>
-          key !== "keyword" &&
-          String(value).trim()
-      ).length;
+  function getLocation(property) {
+    return (
+      property.location ||
+      property.city ||
+      property.state ||
+      "Location unavailable"
+    );
   }
 
   if (loading) {
@@ -358,12 +377,30 @@ export default function SearchProperties() {
             justify-content: center;
             background: #f8fafc;
             color: #475569;
+            font-family: Inter, system-ui, sans-serif;
             font-size: 18px;
             font-weight: 800;
+          }
+
+          .search-loader {
+            width: 38px;
+            height: 38px;
+            margin-right: 12px;
+            border: 4px solid #dbeafe;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: searchSpin .8s linear infinite;
+          }
+
+          @keyframes searchSpin {
+            to {
+              transform: rotate(360deg);
+            }
           }
         `}</style>
 
         <div className="search-loading">
+          <div className="search-loader"></div>
           Loading Properties...
         </div>
       </>
@@ -379,36 +416,57 @@ export default function SearchProperties() {
           background:
             radial-gradient(
               circle at top left,
-              rgba(37,99,235,.08),
+              rgba(37,99,235,.09),
               transparent 30%
             ),
             #f8fafc;
+          color: #0f172a;
+          font-family:
+            Inter,
+            system-ui,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            sans-serif;
         }
 
         .search-container {
-          max-width: 1300px;
+          width: 100%;
+          max-width: 1320px;
           margin: 0 auto;
         }
 
         .search-header {
-          margin-bottom: 20px;
+          margin-bottom: 22px;
         }
 
         .search-header h1 {
           margin: 0 0 7px;
           color: #0f172a;
-          font-size: clamp(
-            28px,
-            4vw,
-            40px
-          );
+          font-size: clamp(28px, 4vw, 42px);
           font-weight: 950;
+          line-height: 1.1;
         }
 
         .search-header p {
           margin: 0;
           color: #64748b;
           font-size: 14px;
+          line-height: 1.6;
+        }
+
+        .mobile-filter-btn {
+          display: none;
+          width: 100%;
+          margin-bottom: 13px;
+          padding: 12px;
+          border: 0;
+          border-radius: 10px;
+          background: #2563eb;
+          color: white;
+          font-size: 13px;
+          font-weight: 900;
+          cursor: pointer;
         }
 
         .search-main {
@@ -426,14 +484,13 @@ export default function SearchProperties() {
           border-radius: 18px;
           background: white;
           box-shadow:
-            0 8px 28px
-            rgba(15,23,42,.05);
+            0 8px 28px rgba(15,23,42,.05);
         }
 
         .filter-heading {
           display: flex;
-          align-items: center;
           justify-content: space-between;
+          align-items: center;
           gap: 10px;
           margin-bottom: 18px;
         }
@@ -442,7 +499,7 @@ export default function SearchProperties() {
           margin: 0;
           color: #0f172a;
           font-size: 18px;
-          font-weight: 900;
+          font-weight: 950;
         }
 
         .clear-btn {
@@ -450,7 +507,7 @@ export default function SearchProperties() {
           background: transparent;
           color: #dc2626;
           font-size: 11px;
-          font-weight: 850;
+          font-weight: 900;
           cursor: pointer;
         }
 
@@ -463,14 +520,15 @@ export default function SearchProperties() {
           margin-bottom: 6px;
           color: #334155;
           font-size: 11px;
-          font-weight: 850;
+          font-weight: 900;
         }
 
         .filter-input,
         .filter-select {
           width: 100%;
           box-sizing: border-box;
-          padding: 10px 11px;
+          min-height: 40px;
+          padding: 9px 11px;
           border: 1px solid #dbe3ee;
           border-radius: 9px;
           outline: none;
@@ -484,7 +542,7 @@ export default function SearchProperties() {
           border-color: #2563eb;
           box-shadow:
             0 0 0 3px
-            rgba(37,99,235,.08);
+            rgba(37,99,235,.09);
         }
 
         .price-grid {
@@ -499,8 +557,8 @@ export default function SearchProperties() {
 
         .results-toolbar {
           display: flex;
-          align-items: center;
           justify-content: space-between;
+          align-items: center;
           gap: 12px;
           margin-bottom: 15px;
           padding: 13px 15px;
@@ -520,28 +578,15 @@ export default function SearchProperties() {
         }
 
         .sort-select {
-          padding: 9px 11px;
+          min-height: 38px;
+          padding: 8px 11px;
           border: 1px solid #dbe3ee;
           border-radius: 9px;
           outline: none;
-          color: #334155;
           background: white;
+          color: #334155;
           font-size: 11px;
-          font-weight: 750;
-        }
-
-        .mobile-filter-btn {
-          display: none;
-          width: 100%;
-          margin-bottom: 12px;
-          padding: 12px;
-          border: 0;
-          border-radius: 10px;
-          background: #2563eb;
-          color: white;
-          font-size: 13px;
-          font-weight: 900;
-          cursor: pointer;
+          font-weight: 800;
         }
 
         .property-grid {
@@ -554,11 +599,20 @@ export default function SearchProperties() {
         .property-card {
           overflow: hidden;
           border: 1px solid #e2e8f0;
-          border-radius: 15px;
+          border-radius: 16px;
           background: white;
           box-shadow:
-            0 7px 25px
-            rgba(15,23,42,.04);
+            0 7px 25px rgba(15,23,42,.04);
+          transition:
+            transform .2s ease,
+            box-shadow .2s ease;
+        }
+
+        .property-card:hover {
+          transform: translateY(-3px);
+          box-shadow:
+            0 16px 35px
+            rgba(15,23,42,.09);
         }
 
         .property-image {
@@ -583,8 +637,20 @@ export default function SearchProperties() {
           background: #2563eb;
           color: white;
           font-size: 9px;
-          font-weight: 900;
+          font-weight: 950;
           text-transform: uppercase;
+        }
+
+        .property-type-badge {
+          position: absolute;
+          right: 10px;
+          top: 10px;
+          padding: 5px 8px;
+          border-radius: 20px;
+          background: rgba(15,23,42,.78);
+          color: white;
+          font-size: 9px;
+          font-weight: 900;
         }
 
         .property-card-body {
@@ -592,21 +658,22 @@ export default function SearchProperties() {
         }
 
         .property-title {
-          margin: 0 0 5px;
+          margin: 0 0 6px;
           color: #0f172a;
           font-size: 16px;
-          font-weight: 900;
+          font-weight: 950;
           line-height: 1.35;
         }
 
         .property-location {
-          margin: 0 0 9px;
+          margin: 0 0 10px;
           color: #64748b;
           font-size: 11px;
+          line-height: 1.5;
         }
 
         .property-price {
-          margin-bottom: 10px;
+          margin-bottom: 11px;
           color: #2563eb;
           font-size: 18px;
           font-weight: 950;
@@ -625,18 +692,19 @@ export default function SearchProperties() {
           background: #f1f5f9;
           color: #475569;
           font-size: 9px;
-          font-weight: 800;
+          font-weight: 850;
         }
 
         .view-property {
           width: 100%;
-          padding: 10px;
+          min-height: 38px;
+          padding: 9px;
           border: 0;
           border-radius: 9px;
           background: #2563eb;
           color: white;
           font-size: 11px;
-          font-weight: 900;
+          font-weight: 950;
           cursor: pointer;
         }
 
@@ -661,12 +729,14 @@ export default function SearchProperties() {
           margin: 0 0 7px;
           color: #0f172a;
           font-size: 21px;
+          font-weight: 950;
         }
 
         .empty-results p {
           margin: 0 0 18px;
           color: #64748b;
           font-size: 13px;
+          line-height: 1.6;
         }
 
         .post-property-btn {
@@ -676,8 +746,12 @@ export default function SearchProperties() {
           background: #2563eb;
           color: white;
           font-size: 12px;
-          font-weight: 900;
+          font-weight: 950;
           cursor: pointer;
+        }
+
+        .post-property-btn:hover {
+          background: #1d4ed8;
         }
 
         @media (max-width: 1100px) {
@@ -742,11 +816,12 @@ export default function SearchProperties() {
 
             <p>
               Find your ideal property using
-              advanced search and filters.
+              advanced search and smart filters.
             </p>
           </header>
 
           <button
+            type="button"
             className="mobile-filter-btn"
             onClick={() =>
               setShowFilters(
@@ -754,12 +829,13 @@ export default function SearchProperties() {
               )
             }
           >
-            ⚙{" "}
+            ⚙️{" "}
             {showFilters
               ? "Hide Filters"
               : "Show Filters"}
-            {activeFilterCount() > 0
-              ? ` (${activeFilterCount()})`
+
+            {activeFilterCount > 0
+              ? ` (${activeFilterCount})`
               : ""}
           </button>
 
@@ -767,18 +843,14 @@ export default function SearchProperties() {
 
             <aside
               className={`search-sidebar ${
-                showFilters
-                  ? "open"
-                  : ""
+                showFilters ? "open" : ""
               }`}
             >
-
               <div className="filter-heading">
-                <h2>
-                  Filters
-                </h2>
+                <h2>Filters</h2>
 
                 <button
+                  type="button"
                   className="clear-btn"
                   onClick={clearFilters}
                 >
@@ -792,12 +864,13 @@ export default function SearchProperties() {
                 </label>
 
                 <input
+                  type="search"
                   className="filter-input"
                   value={filters.keyword}
-                  onChange={(e) =>
+                  onChange={(event) =>
                     updateFilter(
                       "keyword",
-                      e.target.value
+                      event.target.value
                     )
                   }
                   placeholder="Property, location..."
@@ -812,10 +885,10 @@ export default function SearchProperties() {
                 <select
                   className="filter-select"
                   value={filters.listingType}
-                  onChange={(e) =>
+                  onChange={(event) =>
                     updateFilter(
                       "listingType",
-                      e.target.value
+                      event.target.value
                     )
                   }
                 >
@@ -842,10 +915,10 @@ export default function SearchProperties() {
                 <select
                   className="filter-select"
                   value={filters.propertyType}
-                  onChange={(e) =>
+                  onChange={(event) =>
                     updateFilter(
                       "propertyType",
-                      e.target.value
+                      event.target.value
                     )
                   }
                 >
@@ -856,33 +929,63 @@ export default function SearchProperties() {
                   {propertyTypes.map(
                     (type) => (
                       <option
-                        value={type}
                         key={type}
+                        value={type}
                       >
                         {type}
                       </option>
                     )
                   )}
 
-                  <option value="Apartment">
-                    Apartment
-                  </option>
+                  {!propertyTypes.some(
+                    (type) =>
+                      String(type).toLowerCase() ===
+                      "apartment"
+                  ) && (
+                    <option value="Apartment">
+                      Apartment
+                    </option>
+                  )}
 
-                  <option value="Villa">
-                    Villa
-                  </option>
+                  {!propertyTypes.some(
+                    (type) =>
+                      String(type).toLowerCase() ===
+                      "villa"
+                  ) && (
+                    <option value="Villa">
+                      Villa
+                    </option>
+                  )}
 
-                  <option value="Plot">
-                    Plot
-                  </option>
+                  {!propertyTypes.some(
+                    (type) =>
+                      String(type).toLowerCase() ===
+                      "plot"
+                  ) && (
+                    <option value="Plot">
+                      Plot
+                    </option>
+                  )}
 
-                  <option value="Commercial">
-                    Commercial
-                  </option>
+                  {!propertyTypes.some(
+                    (type) =>
+                      String(type).toLowerCase() ===
+                      "commercial"
+                  ) && (
+                    <option value="Commercial">
+                      Commercial
+                    </option>
+                  )}
 
-                  <option value="House">
-                    House
-                  </option>
+                  {!propertyTypes.some(
+                    (type) =>
+                      String(type).toLowerCase() ===
+                      "house"
+                  ) && (
+                    <option value="House">
+                      House
+                    </option>
+                  )}
                 </select>
               </div>
 
@@ -895,5 +998,434 @@ export default function SearchProperties() {
                   className="filter-input"
                   list="property-cities"
                   value={filters.city}
-                  onChange={(e) =>
-                
+                  onChange={(event) =>
+                    updateFilter(
+                      "city",
+                      event.target.value
+                    )
+                  }
+                  placeholder="Delhi, Noida, Mumbai..."
+                />
+
+                <datalist id="property-cities">
+                  {cities.map((city) => (
+                    <option
+                      key={city}
+                      value={city}
+                    />
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">
+                  Price Range
+                </label>
+
+                <div className="price-grid">
+                  <input
+                    type="number"
+                    className="filter-input"
+                    value={filters.minPrice}
+                    onChange={(event) =>
+                      updateFilter(
+                        "minPrice",
+                        event.target.value
+                      )
+                    }
+                    placeholder="Min ₹"
+                    min="0"
+                  />
+
+                  <input
+                    type="number"
+                    className="filter-input"
+                    value={filters.maxPrice}
+                    onChange={(event) =>
+                      updateFilter(
+                        "maxPrice",
+                        event.target.value
+                      )
+                    }
+                    placeholder="Max ₹"
+                    min="0"
+                  />
+                </div>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">
+                  Area
+                </label>
+
+                <div className="price-grid">
+                  <input
+                    type="number"
+                    className="filter-input"
+                    value={filters.minArea}
+                    onChange={(event) =>
+                      updateFilter(
+                        "minArea",
+                        event.target.value
+                      )
+                    }
+                    placeholder="Min area"
+                    min="0"
+                  />
+
+                  <input
+                    type="number"
+                    className="filter-input"
+                    value={filters.maxArea}
+                    onChange={(event) =>
+                      updateFilter(
+                        "maxArea",
+                        event.target.value
+                      )
+                    }
+                    placeholder="Max area"
+                    min="0"
+                  />
+                </div>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">
+                  Bedrooms
+                </label>
+
+                <select
+                  className="filter-select"
+                  value={filters.bedrooms}
+                  onChange={(event) =>
+                    updateFilter(
+                      "bedrooms",
+                      event.target.value
+                    )
+                  }
+                >
+                  <option value="">
+                    Any
+                  </option>
+                  <option value="1">
+                    1+ BHK
+                  </option>
+                  <option value="2">
+                    2+ BHK
+                  </option>
+                  <option value="3">
+                    3+ BHK
+                  </option>
+                  <option value="4">
+                    4+ BHK
+                  </option>
+                  <option value="5">
+                    5+ BHK
+                  </option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">
+                  Bathrooms
+                </label>
+
+                <select
+                  className="filter-select"
+                  value={filters.bathrooms}
+                  onChange={(event) =>
+                    updateFilter(
+                      "bathrooms",
+                      event.target.value
+                    )
+                  }
+                >
+                  <option value="">
+                    Any
+                  </option>
+                  <option value="1">
+                    1+
+                  </option>
+                  <option value="2">
+                    2+
+                  </option>
+                  <option value="3">
+                    3+
+                  </option>
+                  <option value="4">
+                    4+
+                  </option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">
+                  Furnishing
+                </label>
+
+                <select
+                  className="filter-select"
+                  value={filters.furnishing}
+                  onChange={(event) =>
+                    updateFilter(
+                      "furnishing",
+                      event.target.value
+                    )
+                  }
+                >
+                  <option value="">
+                    Any
+                  </option>
+                  <option value="Furnished">
+                    Furnished
+                  </option>
+                  <option value="Semi-Furnished">
+                    Semi-Furnished
+                  </option>
+                  <option value="Unfurnished">
+                    Unfurnished
+                  </option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label className="filter-label">
+                  Possession
+                </label>
+
+                <select
+                  className="filter-select"
+                  value={filters.possession}
+                  onChange={(event) =>
+                    updateFilter(
+                      "possession",
+                      event.target.value
+                    )
+                  }
+                >
+                  <option value="">
+                    Any
+                  </option>
+                  <option value="Ready to Move">
+                    Ready to Move
+                  </option>
+                  <option value="Under Construction">
+                    Under Construction
+                  </option>
+                  <option value="Upcoming">
+                    Upcoming
+                  </option>
+                </select>
+              </div>
+            </aside>
+
+            <section className="search-results">
+
+              <div className="results-toolbar">
+                <div className="results-count">
+                  <strong>
+                    {filteredProperties.length}
+                  </strong>{" "}
+                  properties found
+                </div>
+
+                <select
+                  className="sort-select"
+                  value={sortBy}
+                  onChange={(event) =>
+                    setSortBy(
+                      event.target.value
+                    )
+                  }
+                >
+                  <option value="newest">
+                    Newest First
+                  </option>
+
+                  <option value="price-low">
+                    Price: Low to High
+                  </option>
+
+                  <option value="price-high">
+                    Price: High to Low
+                  </option>
+
+                  <option value="area-high">
+                    Largest Area First
+                  </option>
+                </select>
+              </div>
+
+              {filteredProperties.length === 0 ? (
+                <div className="empty-results">
+                  <div className="empty-results-icon">
+                    🏠
+                  </div>
+
+                  <h2>
+                    No Properties Found
+                  </h2>
+
+                  <p>
+                    We could not find any property
+                    matching your current filters.
+                    Try changing the search criteria.
+                  </p>
+
+                  <button
+                    type="button"
+                    className="post-property-btn"
+                    onClick={clearFilters}
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              ) : (
+                <div className="property-grid">
+                  {filteredProperties.map(
+                    (property, index) => (
+                      <article
+                        className="property-card"
+                        key={
+                          property.id ||
+                          `search-property-${index}`
+                        }
+                      >
+                        <div className="property-image">
+                          <img
+                            src={getImage(property)}
+                            alt={
+                              property.title ||
+                              "PROZPO Property"
+                            }
+                            loading="lazy"
+                          />
+
+                          {property.listing_type && (
+                            <span className="property-listing">
+                              {property.listing_type}
+                            </span>
+                          )}
+
+                          {property.property_type && (
+                            <span className="property-type-badge">
+                              {property.property_type}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="property-card-body">
+                          <h2 className="property-title">
+                            {property.title ||
+                              "Property Listing"}
+                          </h2>
+
+                          <p className="property-location">
+                            📍 {getLocation(property)}
+                          </p>
+
+                          <div className="property-price">
+                            {money(property.price)}
+                          </div>
+
+                          <div className="property-meta">
+                            {property.area && (
+                              <span>
+                                📐 {property.area}{" "}
+                                {property.area_unit ||
+                                  "sq ft"}
+                              </span>
+                            )}
+
+                            {property.bedrooms && (
+                              <span>
+                                🛏{" "}
+                                {property.bedrooms} BHK
+                              </span>
+                            )}
+
+                            {property.bathrooms && (
+                              <span>
+                                🛁{" "}
+                                {property.bathrooms} Bath
+                              </span>
+                            )}
+
+                            {property.furnishing && (
+                              <span>
+                                {property.furnishing}
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            className="view-property"
+                            onClick={() =>
+                              viewProperty(
+                                property.id
+                              )
+                            }
+                          >
+                            View Property
+                          </button>
+                        </div>
+                      </article>
+                    )
+                  )}
+                </div>
+              )}
+
+              {filteredProperties.length > 0 && (
+                <div
+                  style={{
+                    marginTop: "25px",
+                    padding: "22px",
+                    borderRadius: "16px",
+                    background:
+                      "linear-gradient(135deg,#0f172a,#2563eb)",
+                    color: "white",
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "21px",
+                      fontWeight: 950,
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Have a Property to Sell or Rent?
+                  </div>
+
+                  <div
+                    style={{
+                      marginBottom: "15px",
+                      color: "#dbeafe",
+                      fontSize: "12px",
+                    }}
+                  >
+                    List your property on PROZPO and
+                    reach potential buyers and tenants.
+                  </div>
+
+                  <button
+                    type="button"
+                    className="post-property-btn"
+                    style={{
+                      background: "white",
+                      color: "#1d4ed8",
+                    }}
+                    onClick={postProperty}
+                  >
+                    + Post Your Property
+                  </button>
+                </div>
+              )}
+            </section>
+          </div>
+        </div>
+      </main>
+    </>
+  );
+}
