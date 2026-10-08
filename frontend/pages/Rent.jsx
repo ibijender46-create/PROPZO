@@ -4,77 +4,49 @@ import { getProperties } from "../src/api";
 function Rent() {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const [search, setSearch] = useState("");
-  const [propertyType, setPropertyType] = useState("All Property Types");
-  const [budget, setBudget] = useState("Any Rent");
-  const [sortBy, setSortBy] = useState("Newest");
+  const [type, setType] = useState("All");
+  const [budget, setBudget] = useState("Any");
+  const [sort, setSort] = useState("Newest");
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
-    async function loadProperties() {
-      try {
-        const data = await getProperties();
-
-        if (!mounted) return;
+    getProperties()
+      .then((data) => {
+        if (!active) return;
 
         const list = Array.isArray(data) ? data : [];
 
-        const rentalProperties = list.filter((p) => {
-          const listingType = String(
+        const rentals = list.filter((p) => {
+          const purpose = String(
             p.listing_type ||
               p.property_for ||
               p.purpose ||
-              p.transaction_type ||
               ""
           ).toLowerCase();
 
-          const title = String(p.title || "").toLowerCase();
-          const description = String(
-            p.description || ""
-          ).toLowerCase();
-
-          const rent =
-            p.rent ||
-            p.monthly_rent ||
-            p.rent_price;
-
           return (
-            listingType.includes("rent") ||
-            listingType.includes("lease") ||
-            Number(rent) > 0 ||
-            title.includes("rent") ||
-            description.includes("rent")
+            purpose.includes("rent") ||
+            purpose.includes("lease") ||
+            Number(p.rent || p.monthly_rent || p.rent_price) > 0
           );
         });
 
-        const finalList =
-          rentalProperties.length > 0
-            ? rentalProperties
-            : list;
+        const source = rentals.length ? rentals : list;
 
         setProperties(
-          finalList.map((p) => ({
+          source.map((p) => ({
             ...p,
-
             id: p.id,
-
-            title:
-              p.title ||
-              "Premium Rental Property",
-
+            title: p.title || "Rental Property",
             location:
               p.location ||
-              [p.city, p.state]
-                .filter(Boolean)
-                .join(", ") ||
-              "Location not available",
-
+              [p.city, p.state].filter(Boolean).join(", ") ||
+              "Location unavailable",
             city: p.city || "",
-
             state: p.state || "",
-
+            type: p.property_type || "Apartment",
             rent: Number(
               p.rent ||
                 p.monthly_rent ||
@@ -82,730 +54,961 @@ function Rent() {
                 p.price ||
                 0
             ),
-
-            type:
-              p.property_type ||
-              p.type ||
-              "Apartment",
-
             bedrooms: Number(p.bedrooms || 0),
-
             bathrooms: Number(p.bathrooms || 0),
-
             area: Number(p.area || 0),
-
-            areaUnit:
-              p.area_unit ||
-              "Sq.Ft.",
-
-            furnishing:
-              p.furnishing ||
-              "",
-
-            possession:
-              p.possession ||
-              "",
-
-            description:
-              p.description ||
-              "Premium rental property available on PROZPO.",
-
-            image:
-              p.image_url ||
-              p.image ||
-              p.thumbnail ||
-              "",
+            areaUnit: p.area_unit || "Sq.Ft.",
+            furnishing: p.furnishing || "",
+            image: p.image_url || p.image || "",
           }))
         );
-      } catch (error) {
-        console.error(
-          "Rental properties error:",
-          error
-        );
-
-        if (mounted) {
-          setProperties([]);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadProperties();
+      })
+      .catch((error) => {
+        console.error("Rent error:", error);
+        if (active) setProperties([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
     return () => {
-      mounted = false;
+      active = false;
     };
   }, []);
 
-  const formatRent = (rent) => {
-    if (!rent || Number(rent) <= 0) {
-      return "Rent on Request";
-    }
-
-    return `₹${Number(rent).toLocaleString(
-      "en-IN"
-    )} / Month`;
+  const formatRent = (value) => {
+    if (!value) return "Rent on Request";
+    return `₹${Number(value).toLocaleString("en-IN")} / Month`;
   };
 
-  const filteredProperties = useMemo(() => {
+  const filtered = useMemo(() => {
     let result = [...properties];
+    const q = search.trim().toLowerCase();
 
-    const query = search.trim().toLowerCase();
-
-    if (query) {
-      result = result.filter((property) => {
-        const searchableText = [
-          property.title,
-          property.location,
-          property.city,
-          property.state,
-          property.type,
-          property.description,
+    if (q) {
+      result = result.filter((p) =>
+        [
+          p.title,
+          p.location,
+          p.city,
+          p.state,
+          p.type,
         ]
-          .filter(Boolean)
           .join(" ")
-          .toLowerCase();
-
-        return searchableText.includes(query);
-      });
-    }
-
-    if (propertyType !== "All Property Types") {
-      result = result.filter((property) =>
-        String(property.type || "")
           .toLowerCase()
-          .includes(
-            propertyType.toLowerCase()
-          )
+          .includes(q)
       );
     }
 
-    if (budget !== "Any Rent") {
-      result = result.filter((property) => {
-        const rent = Number(
-          property.rent || 0
-        );
+    if (type !== "All") {
+      result = result.filter((p) =>
+        String(p.type).toLowerCase().includes(type.toLowerCase())
+      );
+    }
 
-        if (budget === "Under ₹15,000") {
-          return rent > 0 && rent < 15000;
-        }
+    if (budget !== "Any") {
+      result = result.filter((p) => {
+        const r = Number(p.rent || 0);
 
-        if (
-          budget ===
-          "₹15,000 - ₹25,000"
-        ) {
-          return (
-            rent >= 15000 &&
-            rent <= 25000
-          );
-        }
-
-        if (
-          budget ===
-          "₹25,000 - ₹50,000"
-        ) {
-          return (
-            rent > 25000 &&
-            rent <= 50000
-          );
-        }
-
-        if (
-          budget === "Above ₹50,000"
-        ) {
-          return rent > 50000;
-        }
+        if (budget === "Under ₹15K") return r > 0 && r < 15000;
+        if (budget === "₹15K - ₹25K")
+          return r >= 15000 && r <= 25000;
+        if (budget === "₹25K - ₹50K")
+          return r > 25000 && r <= 50000;
+        if (budget === "Above ₹50K") return r > 50000;
 
         return true;
       });
     }
 
-    if (sortBy === "Low to High") {
-      result.sort(
-        (a, b) =>
-          Number(a.rent || 0) -
-          Number(b.rent || 0)
-      );
+    if (sort === "Low to High") {
+      result.sort((a, b) => a.rent - b.rent);
     }
 
-    if (sortBy === "High to Low") {
-      result.sort(
-        (a, b) =>
-          Number(b.rent || 0) -
-          Number(a.rent || 0)
-      );
+    if (sort === "High to Low") {
+      result.sort((a, b) => b.rent - a.rent);
     }
 
     return result;
-  }, [
-    properties,
-    search,
-    propertyType,
-    budget,
-    sortBy,
-  ]);
+  }, [properties, search, type, budget, sort]);
 
   const clearFilters = () => {
     setSearch("");
-    setPropertyType(
-      "All Property Types"
-    );
-    setBudget("Any Rent");
-    setSortBy("Newest");
+    setType("All");
+    setBudget("Any");
+    setSort("Newest");
   };
 
-  const openProperty = (property) => {
-    if (!property?.id) return;
-
-    window.location.hash =
-      `property/${property.id}`;
+  const openProperty = (id) => {
+    if (id) window.location.hash = `property/${id}`;
   };
 
-  const enquireProperty = (property) => {
-    if (property?.id) {
-      window.location.hash =
-        `property/${property.id}?enquiry=1`;
-      return;
+  const enquire = (id) => {
+    if (id) {
+      window.location.hash = `property/${id}?enquiry=1`;
+    } else {
+      window.location.hash = "my-enquiries";
     }
-
-    window.location.hash =
-      "my-enquiries";
-  };
-
-  const listProperty = () => {
-    window.location.hash =
-      "post-property";
   };
 
   return (
-    <main style={styles.page}>
+    <main className="rent-page">
+      <style>{`
+        *{box-sizing:border-box}
+        .rent-page{
+          min-height:100vh;
+          background:#f6f8fc;
+          color:#172033;
+          font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+        }
+        .rent-hero{
+          background:linear-gradient(135deg,#07162f,#0b3975 65%,#1674e8);
+          color:white;
+          padding:70px 20px 115px;
+          position:relative;
+          overflow:hidden;
+        }
+        .rent-hero:after{
+          content:"";
+          position:absolute;
+          width:420px;
+          height:420px;
+          border-radius:50%;
+          background:rgba(255,255,255,.07);
+          right:-180px;
+          top:-200px;
+        }
+        .rent-hero-inner{
+          max-width:1180px;
+          margin:auto;
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:40px;
+          position:relative;
+          z-index:1;
+        }
+        .rent-badge{
+          display:inline-block;
+          padding:8px 13px;
+          border:1px solid rgba(255,255,255,.2);
+          border-radius:30px;
+          background:rgba(255,255,255,.1);
+          font-size:11px;
+          font-weight:800;
+          letter-spacing:1px;
+        }
+        .rent-hero h1{
+          margin:20px 0 15px;
+          font-size:clamp(42px,6vw,68px);
+          line-height:1;
+          letter-spacing:-2px;
+        }
+        .rent-hero h1 span{color:#69b8ff}
+        .rent-hero p{
+          max-width:650px;
+          color:#d8e7f8;
+          font-size:17px;
+          line-height:1.7;
+        }
+        .rent-buttons{
+          display:flex;
+          gap:12px;
+          flex-wrap:wrap;
+          margin-top:25px;
+        }
+        .rent-buttons button,
+        .rent-cta button{
+          border:0;
+          border-radius:10px;
+          padding:13px 18px;
+          font-weight:800;
+          cursor:pointer;
+        }
+        .rent-primary{background:white;color:#0b3975}
+        .rent-secondary{
+          background:rgba(255,255,255,.1);
+          color:white;
+          border:1px solid rgba(255,255,255,.3)!important;
+        }
+        .rent-hero-card{
+          width:310px;
+          padding:22px;
+          border-radius:22px;
+          background:rgba(255,255,255,.11);
+          border:1px solid rgba(255,255,255,.18);
+          flex-shrink:0;
+        }
+        .rent-hero-card h3{margin:0 0 5px;font-size:25px}
+        .rent-hero-card p{font-size:13px;margin:0;color:#d7e8fa}
+        .rent-stat{
+          display:grid;
+          grid-template-columns:repeat(3,1fr);
+          gap:8px;
+          margin-top:25px;
+        }
+        .rent-stat div{
+          padding:12px 7px;
+          border-radius:10px;
+          background:rgba(255,255,255,.08);
+          text-align:center;
+        }
+        .rent-stat strong{display:block;font-size:18px}
+        .rent-stat small{font-size:9px;color:#c8d9eb}
 
-      {/* ================= HERO ================= */}
+        .rent-filter-wrap{
+          max-width:1180px;
+          margin:-52px auto 0;
+          padding:0 20px;
+          position:relative;
+          z-index:5;
+        }
+        .rent-filter{
+          display:grid;
+          grid-template-columns:1.5fr 1fr 1fr auto;
+          gap:12px;
+          padding:15px;
+          background:white;
+          border:1px solid #e3eaf2;
+          border-radius:18px;
+          box-shadow:0 18px 45px rgba(20,45,80,.14);
+        }
+        .rent-field{
+          display:flex;
+          flex-direction:column;
+          gap:6px;
+        }
+        .rent-field label{
+          font-size:10px;
+          font-weight:900;
+          color:#68778b;
+          letter-spacing:.7px;
+        }
+        .rent-field input,
+        .rent-field select,
+        .rent-sort{
+          width:100%;
+          border:1px solid #dce4ed;
+          border-radius:9px;
+          padding:12px;
+          background:white;
+          color:#1d2b40;
+          outline:none;
+        }
+        .rent-search-btn{
+          align-self:end;
+          border:0;
+          border-radius:10px;
+          padding:13px 22px;
+          background:#1469d8;
+          color:white;
+          font-weight:800;
+          cursor:pointer;
+        }
 
-      <section
-        style={styles.hero}
-        className="prozpo-rent-hero"
-      >
-        <div style={styles.heroGlowOne}></div>
-        <div style={styles.heroGlowTwo}></div>
+        .rent-content{
+          max-width:1180px;
+          margin:auto;
+          padding:65px 20px 40px;
+        }
+        .rent-heading{
+          display:flex;
+          justify-content:space-between;
+          align-items:end;
+          gap:20px;
+          margin-bottom:25px;
+        }
+        .rent-heading small{
+          color:#176bd6;
+          font-size:10px;
+          font-weight:900;
+          letter-spacing:1.5px;
+        }
+        .rent-heading h2{
+          margin:7px 0;
+          font-size:34px;
+        }
+        .rent-heading p{
+          margin:0;
+          color:#748195;
+          font-size:14px;
+        }
+        .rent-actions{
+          display:flex;
+          gap:9px;
+        }
+        .rent-clear{
+          border:1px solid #dce4ed;
+          background:white;
+          border-radius:9px;
+          padding:11px 14px;
+          cursor:pointer;
+          font-weight:700;
+        }
 
-        <div
-          style={styles.heroInner}
-          className="prozpo-rent-hero-inner"
-        >
-          <div style={styles.heroContent}>
+        .rent-grid{
+          display:grid;
+          grid-template-columns:repeat(3,1fr);
+          gap:22px;
+        }
+        .rent-card{
+          background:white;
+          border:1px solid #e3eaf2;
+          border-radius:17px;
+          overflow:hidden;
+          transition:.25s;
+        }
+        .rent-card:hover{
+          transform:translateY(-5px);
+          box-shadow:0 20px 45px rgba(20,45,80,.13);
+        }
+        .rent-image{
+          height:225px;
+          position:relative;
+          background:linear-gradient(135deg,#cde7ff,#8fc1ee);
+          background-size:cover;
+          background-position:center;
+        }
+        .rent-image:after{
+          content:"";
+          position:absolute;
+          inset:0;
+          background:linear-gradient(transparent,rgba(5,20,40,.48));
+        }
+        .rent-tag,
+        .rent-verified{
+          position:absolute;
+          z-index:2;
+          top:12px;
+          padding:7px 9px;
+          border-radius:20px;
+          color:white;
+          font-size:10px;
+          font-weight:800;
+        }
+        .rent-tag{
+          left:12px;
+          background:#1469d8;
+        }
+        .rent-verified{
+          right:12px;
+          background:rgba(10,30,55,.75);
+        }
+        .rent-placeholder{
+          position:absolute;
+          inset:0;
+          display:flex;
+          flex-direction:column;
+          justify-content:center;
+          align-items:center;
+          z-index:1;
+          color:#16416e;
+        }
+        .rent-placeholder div{
+          font-size:45px;
+        }
+        .rent-placeholder strong{font-size:18px}
+        .rent-card-body{padding:17px}
+        .rent-type{
+          color:#176bd6;
+          font-size:10px;
+          font-weight:900;
+          text-transform:uppercase;
+        }
+        .rent-card h3{
+          margin:8px 0;
+          font-size:18px;
+          line-height:1.3;
+        }
+        .rent-location{
+          color:#6d7b8e;
+          font-size:13px;
+          margin:0 0 13px;
+        }
+        .rent-details{
+          display:flex;
+          flex-wrap:wrap;
+          gap:6px;
+          padding-bottom:13px;
+          border-bottom:1px solid #edf1f5;
+        }
+        .rent-details span{
+          padding:6px 8px;
+          border-radius:7px;
+          background:#f5f8fc;
+          color:#536277;
+          font-size:10px;
+        }
+        .rent-bottom{
+          display:flex;
+          justify-content:space-between;
+          align-items:end;
+          gap:10px;
+          margin-top:15px;
+        }
+        .rent-price-label{
+          display:block;
+          color:#8a96a6;
+          font-size:8px;
+          font-weight:900;
+          letter-spacing:1px;
+        }
+        .rent-price{
+          display:block;
+          color:#1469d8;
+          font-size:17px;
+          margin-top:4px;
+        }
+        .rent-enquire{
+          border:0;
+          border-radius:9px;
+          padding:10px 12px;
+          background:#edf5ff;
+          color:#1267d6;
+          font-weight:800;
+          cursor:pointer;
+        }
+        .rent-details-btn{
+          width:100%;
+          margin-top:12px;
+          padding:10px;
+          border:1px solid #dce5ef;
+          border-radius:9px;
+          background:white;
+          color:#24364d;
+          font-weight:800;
+          cursor:pointer;
+        }
 
-            <div style={styles.badge}>
-              <span style={styles.badgeDot}></span>
+        .rent-empty{
+          text-align:center;
+          background:white;
+          border:1px solid #e3eaf2;
+          border-radius:17px;
+          padding:60px 20px;
+        }
+        .rent-empty-icon{font-size:42px}
+        .rent-empty h3{font-size:22px}
+        .rent-empty p{color:#718096}
+        .rent-empty button{
+          border:0;
+          background:#1469d8;
+          color:white;
+          border-radius:9px;
+          padding:11px 17px;
+          font-weight:800;
+          cursor:pointer;
+        }
+
+        .rent-benefits{
+          max-width:1180px;
+          margin:auto;
+          padding:45px 20px 75px;
+        }
+        .rent-benefits h2{
+          margin:5px 0 10px;
+          font-size:34px;
+        }
+        .rent-benefits-intro{
+          color:#718096;
+          max-width:600px;
+          line-height:1.6;
+        }
+        .rent-benefit-grid{
+          display:grid;
+          grid-template-columns:repeat(4,1fr);
+          gap:16px;
+          margin-top:25px;
+        }
+        .rent-benefit{
+          background:white;
+          border:1px solid #e3eaf2;
+          border-radius:15px;
+          padding:22px;
+        }
+        .rent-benefit-icon{
+          width:43px;
+          height:43px;
+          display:grid;
+          place-items:center;
+          border-radius:11px;
+          background:#edf5ff;
+          color:#1469d8;
+          font-size:19px;
+          font-weight:900;
+        }
+        .rent-benefit h3{font-size:16px}
+        .rent-benefit p{
+          color:#718096;
+          font-size:13px;
+          line-height:1.6;
+        }
+
+        .rent-cta-wrap{
+          max-width:1180px;
+          margin:auto;
+          padding:0 20px 70px;
+        }
+        .rent-cta{
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:25px;
+          padding:38px;
+          border-radius:22px;
+          background:linear-gradient(135deg,#09264d,#1269d7);
+          color:white;
+        }
+        .rent-cta small{
+          color:#8bc7ff;
+          font-weight:900;
+          letter-spacing:1px;
+        }
+        .rent-cta h2{
+          margin:8px 0;
+          font-size:31px;
+        }
+        .rent-cta p{
+          margin:0;
+          color:#d3e3f5;
+          max-width:650px;
+          line-height:1.6;
+        }
+        .rent-cta button{
+          background:white;
+          color:#0d376e;
+          white-space:nowrap;
+        }
+
+        .rent-floating{
+          position:fixed;
+          right:17px;
+          bottom:18px;
+          z-index:50;
+          border:0;
+          border-radius:30px;
+          padding:11px 16px;
+          background:#1469d8;
+          color:white;
+          font-weight:800;
+          box-shadow:0 10px 25px rgba(20,105,216,.3);
+          cursor:pointer;
+        }
+
+        @media(max-width:950px){
+          .rent-hero-inner{flex-direction:column;align-items:flex-start}
+          .rent-hero-card{width:100%;max-width:420px}
+          .rent-grid{grid-template-columns:repeat(2,1fr)}
+          .rent-benefit-grid{grid-template-columns:repeat(2,1fr)}
+        }
+
+        @media(max-width:650px){
+          .rent-hero{padding:50px 16px 95px}
+          .rent-hero h1{font-size:43px}
+          .rent-filter{grid-template-columns:1fr}
+          .rent-content{padding-top:50px}
+          .rent-heading{flex-direction:column;align-items:flex-start}
+          .rent-actions{width:100%}
+          .rent-actions>*{flex:1}
+          .rent-grid{grid-template-columns:1fr}
+          .rent-benefit-grid{grid-template-columns:1fr}
+          .rent-cta{flex-direction:column;align-items:flex-start;padding:28px 22px}
+          .rent-cta button{width:100%}
+        }
+      `}</style>
+
+      {/* HERO */}
+      <section className="rent-hero">
+        <div className="rent-hero-inner">
+          <div>
+            <span className="rent-badge">
               PROZPO • RENT PROPERTY
-            </div>
+            </span>
 
-            <h1
-              style={styles.title}
-              className="prozpo-rent-title"
-            >
+            <h1>
               Find Your
-              <span style={styles.highlight}>
-                {" "}Perfect Rental
-              </span>
+              <br />
+              <span>Perfect Rental</span>
             </h1>
 
-            <p style={styles.subtitle}>
-              Discover apartments, houses,
-              villas, offices and commercial
-              spaces available for rent across
-              major Indian cities.
+            <p>
+              Discover apartments, houses, villas,
+              offices and commercial properties
+              available for rent across India.
             </p>
 
-            <div style={styles.heroButtons}>
+            <div className="rent-buttons">
               <button
+                className="rent-primary"
                 onClick={() =>
                   document
-                    .getElementById(
-                      "rent-properties"
-                    )
-                    ?.scrollIntoView({
-                      behavior: "smooth",
-                    })
+                    .getElementById("rent-results")
+                    ?.scrollIntoView({ behavior: "smooth" })
                 }
-                style={styles.primaryHeroButton}
               >
-                Explore Rentals
-                <span>→</span>
+                Explore Rentals →
               </button>
 
               <button
-                onClick={listProperty}
-                style={styles.secondaryHeroButton}
+                className="rent-secondary"
+                onClick={() =>
+                  (window.location.hash = "post-property")
+                }
               >
                 List Your Property
               </button>
             </div>
           </div>
 
-          <div style={styles.heroCard}>
+          <div className="rent-hero-card">
+            <h3>Rental Properties</h3>
+            <p>Search verified listings on PROZPO.</p>
 
-            <div style={styles.heroCardTop}>
-              <span>AVAILABLE NOW</span>
-              <span style={styles.liveDot}>
-                ● LIVE
-              </span>
-            </div>
-
-            <div style={styles.heroHouse}>
-              <div style={styles.houseRoof}></div>
-
-              <div style={styles.houseBody}>
-                <div style={styles.houseWindow}></div>
-                <div style={styles.houseWindow}></div>
-                <div style={styles.houseDoor}></div>
-              </div>
-
-              <div style={styles.houseGround}></div>
-            </div>
-
-            <div style={styles.heroCardInfo}>
-              <strong>
-                Rental Homes
-              </strong>
-
-              <span>
-                Verified properties on PROZPO
-              </span>
-            </div>
-
-            <div style={styles.heroStatRow}>
+            <div className="rent-stat">
               <div>
-                <strong>
-                  {properties.length}
-                </strong>
-                <span>Listings</span>
+                <strong>{properties.length}</strong>
+                <small>LISTINGS</small>
               </div>
-
-              <div>
-                <strong>100%</strong>
-                <span>Easy Enquiry</span>
-              </div>
-
               <div>
                 <strong>24×7</strong>
-                <span>Access</span>
+                <small>ACCESS</small>
+              </div>
+              <div>
+                <strong>✓</strong>
+                <small>ENQUIRY</small>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= FILTER ================= */}
-
-      <section
-        style={styles.filterWrapper}
-        id="rent-properties"
-      >
-        <div
-          style={styles.filterBox}
-          className="prozpo-rent-filter"
-        >
-
-          <div
-            style={styles.searchField}
-            className="prozpo-rent-search"
-          >
-            <span style={styles.searchIcon}>
-              ⌕
-            </span>
-
-            <div style={styles.fieldContent}>
-              <label>
-                SEARCH LOCATION
-              </label>
-
-              <input
-                value={search}
-                onChange={(e) =>
-                  setSearch(e.target.value)
-                }
-                placeholder="City, locality or area"
-              />
-            </div>
+      {/* FILTER */}
+      <section className="rent-filter-wrap">
+        <div className="rent-filter">
+          <div className="rent-field">
+            <label>SEARCH LOCATION</label>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="City, locality or area"
+            />
           </div>
 
-          <div
-            style={styles.divider}
-            className="prozpo-rent-divider"
-          ></div>
-
-          <div style={styles.filterField}>
-            <label>
-              PROPERTY TYPE
-            </label>
-
+          <div className="rent-field">
+            <label>PROPERTY TYPE</label>
             <select
-              value={propertyType}
-              onChange={(e) =>
-                setPropertyType(
-                  e.target.value
-                )
-              }
+              value={type}
+              onChange={(e) => setType(e.target.value)}
             >
-              <option>
-                All Property Types
-              </option>
-              <option>Apartment</option>
-              <option>Villa</option>
-              <option>
-                Independent House
-              </option>
-              <option>Studio</option>
-              <option>Commercial</option>
-              <option>Office</option>
-              <option>Shop</option>
+              <option value="All">All Property Types</option>
+              <option value="Apartment">Apartment</option>
+              <option value="Villa">Villa</option>
+              <option value="House">House</option>
+              <option value="Studio">Studio</option>
+              <option value="Office">Office</option>
+              <option value="Shop">Shop</option>
+              <option value="Commercial">Commercial</option>
             </select>
           </div>
 
-          <div
-            style={styles.divider}
-            className="prozpo-rent-divider"
-          ></div>
-
-          <div style={styles.filterField}>
-            <label>
-              MONTHLY RENT
-            </label>
-
+          <div className="rent-field">
+            <label>MONTHLY RENT</label>
             <select
               value={budget}
-              onChange={(e) =>
-                setBudget(e.target.value)
-              }
+              onChange={(e) => setBudget(e.target.value)}
             >
-              <option>
-                Any Rent
-              </option>
-              <option>
-                Under ₹15,000
-              </option>
-              <option>
-                ₹15,000 - ₹25,000
-              </option>
-              <option>
-                ₹25,000 - ₹50,000
-              </option>
-              <option>
-                Above ₹50,000
-              </option>
+              <option value="Any">Any Rent</option>
+              <option value="Under ₹15K">Under ₹15,000</option>
+              <option value="₹15K - ₹25K">₹15,000 - ₹25,000</option>
+              <option value="₹25K - ₹50K">₹25,000 - ₹50,000</option>
+              <option value="Above ₹50K">Above ₹50,000</option>
             </select>
           </div>
 
           <button
+            className="rent-search-btn"
             onClick={() =>
               document
-                .getElementById(
-                  "rent-results"
-                )
-                ?.scrollIntoView({
-                  behavior: "smooth",
-                })
+                .getElementById("rent-results")
+                ?.scrollIntoView({ behavior: "smooth" })
             }
-            style={styles.searchButton}
           >
-            Search
-            <span>→</span>
+            Search →
           </button>
         </div>
       </section>
 
-      {/* ================= CONTENT ================= */}
-
-      <section
-        style={styles.content}
-        id="rent-results"
-      >
-
-        <div
-          style={styles.resultHeader}
-          className="prozpo-rent-result"
-        >
+      {/* RESULTS */}
+      <section className="rent-content" id="rent-results">
+        <div className="rent-heading">
           <div>
-            <span style={styles.eyebrow}>
-              RENTAL LISTINGS
-            </span>
-
-            <h2 style={styles.resultTitle}>
-              Properties For Rent
-            </h2>
-
-            <p style={styles.resultText}>
+            <small>RENTAL LISTINGS</small>
+            <h2>Properties For Rent</h2>
+            <p>
               {loading
                 ? "Loading rental properties..."
-                : `${filteredProperties.length} rental ${
-                    filteredProperties.length === 1
-                      ? "property"
-                      : "properties"
-                  } found`}
+                : `${filtered.length} properties found`}
             </p>
           </div>
 
-          <div
-            style={styles.actions}
-            className="prozpo-rent-actions"
-          >
+          <div className="rent-actions">
             <button
+              className="rent-clear"
               onClick={clearFilters}
-              style={styles.clearButton}
             >
-              ↺ Clear Filters
+              Clear Filters
             </button>
 
             <select
-              value={sortBy}
-              onChange={(e) =>
-                setSortBy(e.target.value)
-              }
-              style={styles.sort}
+              className="rent-sort"
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
             >
               <option>Newest</option>
-              <option>
-                Low to High
-              </option>
-              <option>
-                High to Low
-              </option>
+              <option>Low to High</option>
+              <option>High to Low</option>
             </select>
           </div>
         </div>
 
-        {/* ================= LOADING ================= */}
-
         {loading && (
-          <div
-            style={styles.grid}
-            className="prozpo-rent-grid"
-          >
-            {[1, 2, 3, 4, 5, 6].map(
-              (item) => (
+          <div className="rent-grid">
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <div className="rent-card" key={n}>
                 <div
-                  key={item}
-                  style={styles.skeleton}
-                >
-                  <div
-                    style={
-                      styles.skeletonImage
-                    }
-                  ></div>
-
-                  <div
-                    style={
-                      styles.skeletonLine
-                    }
-                  ></div>
-
+                  style={{
+                    height: 225,
+                    background: "#e9eef5",
+                  }}
+                />
+                <div style={{ padding: 20 }}>
                   <div
                     style={{
-                      ...styles.skeletonLine,
-                      width: "68%",
+                      height: 18,
+                      width: "70%",
+                      background: "#e9eef5",
+                      borderRadius: 8,
                     }}
-                  ></div>
-
+                  />
                   <div
                     style={{
-                      ...styles.skeletonLine,
-                      width: "45%",
+                      height: 12,
+                      width: "90%",
+                      background: "#e9eef5",
+                      borderRadius: 8,
+                      marginTop: 15,
                     }}
-                  ></div>
+                  />
                 </div>
-              )
-            )}
+              </div>
+            ))}
           </div>
         )}
 
-        {/* ================= EMPTY ================= */}
+        {!loading && filtered.length === 0 && (
+          <div className="rent-empty">
+            <div className="rent-empty-icon">🔑</div>
+            <h3>No rental properties found</h3>
+            <p>
+              Try changing your location, property
+              type or rent range.
+            </p>
+            <button onClick={clearFilters}>
+              Clear Filters
+            </button>
+          </div>
+        )}
 
-        {!loading &&
-          filteredProperties.length === 0 && (
-            <div style={styles.empty}>
-
-              <div style={styles.emptyIcon}>
-                🔑
-              </div>
-
-              <h3>
-                No rental properties found
-              </h3>
-
-              <p>
-                Try changing your location,
-                property type or monthly
-                rent range.
-              </p>
-
-              <div style={styles.emptyButtons}>
-                <button
-                  onClick={clearFilters}
-                  style={styles.emptyButton}
-                >
-                  Clear Filters
-                </button>
-
-                <button
-                  onClick={listProperty}
-                  style={styles.emptySecondary}
-                >
-                  List a Property
-                </button>
-              </div>
-            </div>
-          )}
-
-        {/* ================= PROPERTY GRID ================= */}
-
-        {!loading &&
-          filteredProperties.length > 0 && (
-            <div
-              style={styles.grid}
-              className="prozpo-rent-grid"
-            >
-              {filteredProperties.map(
-                (property, index) => (
-                  <article
-                    key={
-                      property.id ||
-                      `${property.title}-${index}`
-                    }
-                    style={styles.card}
-                    className="prozpo-rent-card"
-                  >
-
-                    {/* IMAGE */}
-
-                    <div
-                      style={{
-                        ...styles.image,
-                        ...(property.image
-                          ? {
-                              backgroundImage:
-                                `url("${property.image}")`,
-                            }
-                          : {}),
-                      }}
-                    >
-
-                      {!property.image && (
-                        <div
-                          style={
-                            styles.placeholder
-                          }
-                        >
-                          <div
-                            style={
-                              styles.placeholderBuilding
-                            }
-                          >
-                            <div></div>
-                            <div></div>
-                            <div></div>
-                            <div></div>
-                          </div>
-
-                          <strong>
-                            PROZPO
-                          </strong>
-
-                          <span>
-                            Rental Property
-                          </span>
-                        </div>
-                      )}
-
-                      <div
-                        style={
-                          styles.imageOverlay
+        {!loading && filtered.length > 0 && (
+          <div className="rent-grid">
+            {filtered.map((property, index) => (
+              <article
+                className="rent-card"
+                key={property.id || index}
+              >
+                <div
+                  className="rent-image"
+                  style={
+                    property.image
+                      ? {
+                          backgroundImage: `url("${property.image}")`,
                         }
-                      ></div>
+                      : {}
+                  }
+                >
+                  {!property.image && (
+                    <div className="rent-placeholder">
+                      <div>🏠</div>
+                      <strong>PROZPO</strong>
+                    </div>
+                  )}
 
-                      <span
-                        style={
-                          styles.verified
-                        }
-                      >
-                        ✓ Verified
+                  <span className="rent-tag">
+                    FOR RENT
+                  </span>
+
+                  <span className="rent-verified">
+                    ✓ Verified
+                  </span>
+                </div>
+
+                <div className="rent-card-body">
+                  <span className="rent-type">
+                    {property.type}
+                  </span>
+
+                  <h3>{property.title}</h3>
+
+                  <p className="rent-location">
+                    📍 {property.location}
+                  </p>
+
+                  <div className="rent-details">
+                    {property.bedrooms > 0 && (
+                      <span>
+                        🛏 {property.bedrooms} BHK
+                      </span>
+                    )}
+
+                    {property.bathrooms > 0 && (
+                      <span>
+                        🛁 {property.bathrooms} Bath
+                      </span>
+                    )}
+
+                    {property.area > 0 && (
+                      <span>
+                        ▣ {property.area} {property.areaUnit}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="rent-bottom">
+                    <div>
+                      <span className="rent-price-label">
+                        MONTHLY RENT
                       </span>
 
-                      <span
-                        style={
-                          styles.rentTag
-                        }
-                      >
-                        FOR RENT
-                      </span>
-
-                      <button
-                        onClick={(e) =>
-                          e.stopPropagation()
-                        }
-                        style={
-                          styles.favorite
-                        }
-                        aria-label="Add to favorites"
-                      >
-                        ♡
-                      </button>
+                      <strong className="rent-price">
+                        {formatRent(property.rent)}
+                      </strong>
                     </div>
 
-                    {/* DETAILS */}
-
-                    <div
-                      style={
-                        styles.cardContent
-                      }
+                    <button
+                      className="rent-enquire"
+                      onClick={() => enquire(property.id)}
                     >
+                      Enquire →
+                    </button>
+                  </div>
 
-                      <div
-                        style={
-                          styles.typeRow
-                        }
-                      >
-                        <span
-                          style={styles.type}
-                        >
-                          {property.type}
-                        </span>
+                  <button
+                    className="rent-details-btn"
+                    onClick={() => openProperty(property.id)}
+                  >
+                    View Full Property Details →
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
-                        <span
-                          style={
-                            styles.verifiedText
-                          }
-                        >
-                          ✓ Verified
-                        </span>
-                      </div>
+      {/* BENEFITS */}
+      <section className="rent-benefits">
+        <small
+          style={{
+            color: "#176bd6",
+            fontSize: 10,
+            fontWeight: 900,
+            letterSpacing: 1.5,
+          }}
+        >
+          WHY RENT THROUGH PROZPO
+        </small>
 
-                      <h3
-                        style={
-                          styles.cardTitle
-                        }
-                      >
-                        {property.title}
-                      </h3>
+        <h2>
+          A Better Way To Find Your Next Home
+        </h2>
 
-                      <p
-                        style={
-                          styles.location
-                        }
-                      >
-                        📍{" "}
-                        {property.location}
-                      </p>
+        <p className="rent-benefits-intro">
+          Search, compare and enquire about rental
+          properties from one simple platform.
+        </p>
 
-                      <div
-                        style={
-                          styles.details
-                        }
-                      >
-                        {property.bedrooms >
-                          0 && (
-                          <span>
-                            ?
+        <div className="rent-benefit-grid">
+          <div className="rent-benefit">
+            <div className="rent-benefit-icon">✓</div>
+            <h3>Verified Listings</h3>
+            <p>
+              Discover rental properties with clear
+              information and verified listing status.
+            </p>
+          </div>
+
+          <div className="rent-benefit">
+            <div className="rent-benefit-icon">⚡</div>
+            <h3>Quick Enquiry</h3>
+            <p>
+              Send enquiries directly from the
+              property listing.
+            </p>
+          </div>
+
+          <div className="rent-benefit">
+            <div className="rent-benefit-icon">₹</div>
+            <h3>Compare Rent</h3>
+            <p>
+              Filter properties according to your
+              monthly rental budget.
+            </p>
+          </div>
+
+          <div className="rent-benefit">
+            <div className="rent-benefit-icon">🏠</div>
+            <h3>Multiple Options</h3>
+            <p>
+              Apartments, villas, houses, offices
+              and commercial spaces.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="rent-cta-wrap">
+        <div className="rent-cta">
+          <div>
+            <small>OWN A RENTAL PROPERTY?</small>
+            <h2>Find Your Next Tenant</h2>
+            <p>
+              List your property on PROZPO and connect
+              with genuine renters.
+            </p>
+          </div>
+
+          <button
+            onClick={() =>
+              (window.location.hash = "post-property")
+            }
+          >
+            List Your Property →
+          </button>
+        </div>
+      </section>
+
+      {/* FLOATING ENQUIRY */}
+      <button
+        className="rent-floating"
+        onClick={() =>
+          (window.location.hash = "my-enquiries")
+        }
+      >
+        ? Enquire Now
+      </button>
+    </main>
+  );
+}
+
+export default Rent;
