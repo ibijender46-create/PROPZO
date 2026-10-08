@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
+
 import {
   getProperties,
   getProjects,
   getAgents,
   getBuilders,
   getEnquiries,
-  getUsers,
+  getRecords,
 } from "../src/api";
 
 export default function AdminDashboard() {
@@ -17,8 +18,10 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [search, setSearch] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     loadDashboard();
@@ -26,7 +29,8 @@ export default function AdminDashboard() {
 
   async function loadDashboard() {
     try {
-      setLoading(true);
+      setRefreshing(true);
+      setMessage("");
 
       const results = await Promise.allSettled([
         getProperties(),
@@ -34,7 +38,7 @@ export default function AdminDashboard() {
         getAgents(),
         getBuilders(),
         getEnquiries(),
-        getUsers(),
+        getRecords("profiles"),
       ]);
 
       function extract(result, key) {
@@ -59,53 +63,146 @@ export default function AdminDashboard() {
         return [];
       }
 
-      setProperties(extract(results[0], "properties"));
-      setProjects(extract(results[1], "projects"));
-      setAgents(extract(results[2], "agents"));
-      setBuilders(extract(results[3], "builders"));
-      setEnquiries(extract(results[4], "enquiries"));
-      setUsers(extract(results[5], "users"));
+      setProperties(
+        extract(results[0], "properties")
+      );
+
+      setProjects(
+        extract(results[1], "projects")
+      );
+
+      setAgents(
+        extract(results[2], "agents")
+      );
+
+      setBuilders(
+        extract(results[3], "builders")
+      );
+
+      setEnquiries(
+        extract(results[4], "enquiries")
+      );
+
+      setUsers(
+        extract(results[5], "profiles")
+      );
     } catch (error) {
-      console.error("Admin dashboard error:", error);
+      console.error(
+        "Admin dashboard error:",
+        error
+      );
+
+      setMessage(
+        error?.message ||
+          "Unable to load admin dashboard."
+      );
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
   const stats = useMemo(() => {
-    const activeProperties = properties.filter((item) => {
-      const status = String(item.status || "active").toLowerCase();
+    const activeProperties =
+      properties.filter((item) => {
+        const status = String(
+          item.status || "active"
+        ).toLowerCase();
 
-      return !["sold", "inactive", "rejected"].includes(status);
-    }).length;
+        return ![
+          "sold",
+          "inactive",
+          "rejected",
+          "blocked",
+        ].includes(status);
+      }).length;
 
-    const pendingProperties = properties.filter((item) => {
-      const status = String(item.status || "").toLowerCase();
+    const pendingProperties =
+      properties.filter((item) => {
+        const status = String(
+          item.status || ""
+        ).toLowerCase();
 
-      return ["pending", "review", "draft"].includes(status);
-    }).length;
+        return [
+          "pending",
+          "review",
+          "draft",
+        ].includes(status);
+      }).length;
 
-    const activeProjects = projects.filter((item) => {
-      const status = String(item.status || "active").toLowerCase();
+    const soldProperties =
+      properties.filter((item) => {
+        return (
+          String(
+            item.status || ""
+          ).toLowerCase() === "sold"
+        );
+      }).length;
 
-      return !["completed", "inactive"].includes(status);
-    }).length;
+    const activeProjects =
+      projects.filter((item) => {
+        const status = String(
+          item.status || "active"
+        ).toLowerCase();
 
-    const newEnquiries = enquiries.filter((item) => {
-      const status = String(item.status || "new").toLowerCase();
+        return ![
+          "completed",
+          "inactive",
+          "rejected",
+          "blocked",
+        ].includes(status);
+      }).length;
 
-      return ["new", "pending"].includes(status);
-    }).length;
+    const newEnquiries =
+      enquiries.filter((item) => {
+        const status = String(
+          item.status || "new"
+        ).toLowerCase();
+
+        return [
+          "new",
+          "pending",
+        ].includes(status);
+      }).length;
+
+    const activeAgents =
+      agents.filter((item) => {
+        const status = String(
+          item.status || "active"
+        ).toLowerCase();
+
+        return ![
+          "inactive",
+          "blocked",
+          "rejected",
+        ].includes(status);
+      }).length;
+
+    const activeBuilders =
+      builders.filter((item) => {
+        const status = String(
+          item.status || "active"
+        ).toLowerCase();
+
+        return ![
+          "inactive",
+          "blocked",
+          "rejected",
+        ].includes(status);
+      }).length;
 
     return {
       users: users.length,
       properties: properties.length,
       activeProperties,
       pendingProperties,
+      soldProperties,
       projects: projects.length,
       activeProjects,
       agents: agents.length,
+      activeAgents,
       builders: builders.length,
+      activeBuilders,
       enquiries: enquiries.length,
       newEnquiries,
     };
@@ -119,97 +216,107 @@ export default function AdminDashboard() {
   ]);
 
   const filteredProperties = useMemo(() => {
-    const keyword = search.toLowerCase().trim();
+    const keyword =
+      search.toLowerCase().trim();
 
     if (!keyword) {
       return properties;
     }
 
-    return properties.filter((property) =>
-      [
-        property.title,
-        property.location,
-        property.city,
-        property.state,
-        property.property_type,
-        property.listing_type,
-        property.status,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword)
+    return properties.filter(
+      (property) =>
+        [
+          property.title,
+          property.location,
+          property.city,
+          property.state,
+          property.property_type,
+          property.listing_type,
+          property.status,
+          property.description,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(keyword)
     );
   }, [properties, search]);
 
   const filteredUsers = useMemo(() => {
-    const keyword = search.toLowerCase().trim();
+    const keyword =
+      search.toLowerCase().trim();
 
     if (!keyword) {
       return users;
     }
 
-    return users.filter((user) =>
-      [
-        user.name,
-        user.email,
-        user.phone,
-        user.city,
-        user.state,
-        user.role,
-        user.status,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword)
+    return users.filter(
+      (user) =>
+        [
+          user.name,
+          user.email,
+          user.phone,
+          user.city,
+          user.state,
+          user.role,
+          user.status,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(keyword)
     );
   }, [users, search]);
 
   const filteredProjects = useMemo(() => {
-    const keyword = search.toLowerCase().trim();
+    const keyword =
+      search.toLowerCase().trim();
 
     if (!keyword) {
       return projects;
     }
 
-    return projects.filter((project) =>
-      [
-        project.name,
-        project.title,
-        project.developer,
-        project.location,
-        project.city,
-        project.state,
-        project.status,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword)
+    return projects.filter(
+      (project) =>
+        [
+          project.name,
+          project.description,
+          project.developer,
+          project.location,
+          project.city,
+          project.state,
+          project.status,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(keyword)
     );
   }, [projects, search]);
 
   const filteredEnquiries = useMemo(() => {
-    const keyword = search.toLowerCase().trim();
+    const keyword =
+      search.toLowerCase().trim();
 
     if (!keyword) {
       return enquiries;
     }
 
-    return enquiries.filter((enquiry) =>
-      [
-        enquiry.name,
-        enquiry.email,
-        enquiry.phone,
-        enquiry.message,
-        enquiry.status,
-        enquiry.property_title,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword)
+    return enquiries.filter(
+      (enquiry) =>
+        [
+          enquiry.name,
+          enquiry.email,
+          enquiry.phone,
+          enquiry.message,
+          enquiry.status,
+          enquiry.property_title,
+          enquiry.project_name,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(keyword)
     );
   }, [enquiries, search]);
 
@@ -221,18 +328,20 @@ export default function AdminDashboard() {
     }
 
     if (amount >= 10000000) {
-      return `₹${(amount / 10000000).toFixed(2)} Cr`;
+      return `₹${(
+        amount / 10000000
+      ).toFixed(2)} Cr`;
     }
 
     if (amount >= 100000) {
-      return `₹${(amount / 100000).toFixed(2)} L`;
+      return `₹${(
+        amount / 100000
+      ).toFixed(2)} L`;
     }
 
-    if (amount >= 1000) {
-      return `₹${amount.toLocaleString("en-IN")}`;
-    }
-
-    return `₹${amount}`;
+    return `₹${amount.toLocaleString(
+      "en-IN"
+    )}`;
   }
 
   function imageFor(property) {
@@ -258,7 +367,8 @@ export default function AdminDashboard() {
       return;
     }
 
-    window.location.hash = `property/${id}`;
+    window.location.hash =
+      `property/${id}`;
   }
 
   function viewProject(id) {
@@ -266,36 +376,59 @@ export default function AdminDashboard() {
       return;
     }
 
-    window.location.hash = `project/${id}`;
+    window.location.hash =
+      `project/${id}`;
   }
 
   function postProperty() {
-    window.location.hash = "post-property";
+    window.location.hash =
+      "post-property";
+  }
+
+  function openProfile() {
+    window.location.hash =
+      "profile";
+  }
+
+  function openEnquiries() {
+    window.location.hash =
+      "my-enquiries";
   }
 
   function statusClass(status) {
-    const value = String(status || "active").toLowerCase();
+    const value = String(
+      status || "active"
+    ).toLowerCase();
 
     if (
-      ["approved", "active", "published", "available"].includes(
-        value
-      )
+      [
+        "approved",
+        "active",
+        "published",
+        "available",
+      ].includes(value)
     ) {
       return "approved";
     }
 
     if (
-      ["pending", "review", "draft", "new"].includes(
-        value
-      )
+      [
+        "pending",
+        "review",
+        "draft",
+        "new",
+      ].includes(value)
     ) {
       return "pending";
     }
 
     if (
-      ["rejected", "blocked", "inactive", "sold"].includes(
-        value
-      )
+      [
+        "rejected",
+        "blocked",
+        "inactive",
+        "sold",
+      ].includes(value)
     ) {
       return "rejected";
     }
@@ -304,7 +437,9 @@ export default function AdminDashboard() {
   }
 
   function roleClass(role) {
-    const value = String(role || "user").toLowerCase();
+    const value = String(
+      role || "user"
+    ).toLowerCase();
 
     if (value === "admin") {
       return "admin";
@@ -360,15 +495,26 @@ export default function AdminDashboard() {
 
     const date = new Date(value);
 
-    if (Number.isNaN(date.getTime())) {
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
       return "—";
     }
 
-    return date.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    return date.toLocaleDateString(
+      "en-IN",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
+  }
+
+  function clearSearch() {
+    setSearch("");
   }
 
   if (loading) {
@@ -411,7 +557,9 @@ export default function AdminDashboard() {
         <div className="admin-loading">
           <div className="admin-loading-box">
             <div className="admin-spinner"></div>
-            <div>Loading Admin Dashboard...</div>
+            <div>
+              Loading Admin Dashboard...
+            </div>
           </div>
         </div>
       </>
@@ -463,12 +611,17 @@ export default function AdminDashboard() {
               #dc2626
             );
           box-shadow:
-            0 18px 50px rgba(127,29,29,.17);
+            0 18px 50px
+            rgba(127,29,29,.17);
         }
 
         .admin-hero h1 {
           margin: 0 0 7px;
-          font-size: clamp(28px, 4vw, 40px);
+          font-size: clamp(
+            28px,
+            4vw,
+            40px
+          );
           line-height: 1.1;
           font-weight: 950;
         }
@@ -503,6 +656,11 @@ export default function AdminDashboard() {
           border: 1px solid rgba(255,255,255,.25);
           background: rgba(255,255,255,.12);
           color: white;
+        }
+
+        .admin-btn:disabled {
+          opacity: .65;
+          cursor: wait;
         }
 
         .admin-tabs {
@@ -547,7 +705,8 @@ export default function AdminDashboard() {
           border-radius: 17px;
           background: white;
           box-shadow:
-            0 7px 25px rgba(15,23,42,.05);
+            0 7px 25px
+            rgba(15,23,42,.05);
         }
 
         .admin-stat-icon {
@@ -559,6 +718,7 @@ export default function AdminDashboard() {
           color: #64748b;
           font-size: 10px;
           font-weight: 800;
+          text-transform: uppercase;
         }
 
         .admin-stat-value {
@@ -574,7 +734,8 @@ export default function AdminDashboard() {
           border-radius: 20px;
           background: white;
           box-shadow:
-            0 8px 28px rgba(15,23,42,.05);
+            0 8px 28px
+            rgba(15,23,42,.05);
         }
 
         .admin-section + .admin-section {
@@ -606,6 +767,7 @@ export default function AdminDashboard() {
           width: 300px;
           max-width: 100%;
           min-height: 42px;
+          box-sizing: border-box;
           padding: 10px 13px;
           border: 1px solid #dbe3ee;
           border-radius: 10px;
@@ -617,7 +779,63 @@ export default function AdminDashboard() {
         .admin-search:focus {
           border-color: #dc2626;
           box-shadow:
-            0 0 0 3px rgba(220,38,38,.08);
+            0 0 0 3px
+            rgba(220,38,38,.08);
+        }
+
+        .admin-message {
+          margin-bottom: 20px;
+          padding: 12px 15px;
+          border-radius: 10px;
+          background: #fff1f2;
+          color: #be123c;
+          font-size: 12px;
+          font-weight: 800;
+          text-align: center;
+        }
+
+        .admin-overview-grid {
+          display: grid;
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+          gap: 22px;
+        }
+
+        .admin-mini-list {
+          display: grid;
+          gap: 10px;
+        }
+
+        .admin-mini-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          padding: 13px;
+          border: 1px solid #edf2f7;
+          border-radius: 10px;
+          background: #f8fafc;
+        }
+
+        .admin-mini-item strong {
+          color: #0f172a;
+          font-size: 12px;
+        }
+
+        .admin-mini-item span {
+          color: #64748b;
+          font-size: 10px;
+        }
+
+        .admin-mini-number {
+          min-width: 34px;
+          padding: 6px 8px;
+          border-radius: 20px;
+          background: #fee2e2;
+          color: #b91c1c;
+          text-align: center;
+          font-size: 10px;
+          font-weight: 950;
         }
 
         .admin-properties {
@@ -715,6 +933,10 @@ export default function AdminDashboard() {
           font-size: 11px;
           font-weight: 900;
           cursor: pointer;
+        }
+
+        .admin-property-btn:hover {
+          background: #b91c1c;
         }
 
         .admin-table-wrap {
@@ -905,89 +1127,90 @@ export default function AdminDashboard() {
           text-transform: uppercase;
         }
 
-        .admin-overview-grid {
+        .admin-quick {
           display: grid;
           grid-template-columns:
-            repeat(2, minmax(0, 1fr));
-          gap: 22px;
-        }
-
-        .admin-mini-list {
-          display: grid;
-          gap: 10px;
-        }
-
-        .admin-mini-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
+            repeat(4, minmax(0, 1fr));
           gap: 12px;
-          padding: 12px;
-          border: 1px solid #edf2f7;
-          border-radius: 10px;
-          background: #f8fafc;
         }
 
-        .admin-mini-item strong {
+        .admin-quick-btn {
+          min-height: 105px;
+          padding: 16px;
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+          background: white;
           color: #0f172a;
+          text-align: left;
+          cursor: pointer;
+          transition: .2s;
+        }
+
+        .admin-quick-btn:hover {
+          transform: translateY(-2px);
+          border-color: #fecaca;
+          background: #fff1f2;
+        }
+
+        .admin-quick-icon {
+          margin-bottom: 8px;
+          font-size: 24px;
+        }
+
+        .admin-quick-title {
           font-size: 12px;
+          font-weight: 950;
         }
 
-        .admin-mini-item span {
+        .admin-quick-text {
+          margin-top: 3px;
           color: #64748b;
-          font-size: 11px;
-        }
-
-        .admin-mini-number {
-          min-width: 32px;
-          padding: 5px 8px;
-          border-radius: 20px;
-          background: #fee2e2;
-          color: #b91c1c;
-          text-align: center;
           font-size: 10px;
-          font-weight: 900;
         }
 
         .admin-empty {
           padding: 45px 20px;
           border: 1px dashed #cbd5e1;
           border-radius: 14px;
-          text-align: center;
           color: #64748b;
+          text-align: center;
         }
 
         .admin-empty-icon {
-          margin-bottom: 9px;
+          margin-bottom: 8px;
           font-size: 40px;
         }
 
         .admin-empty h3 {
           margin: 0 0 6px;
           color: #0f172a;
+          font-size: 18px;
         }
 
         .admin-empty p {
           margin: 0;
-          font-size: 13px;
+          font-size: 12px;
         }
 
-        .admin-count {
-          display: inline-flex;
+        .admin-search-row {
+          display: flex;
           align-items: center;
-          justify-content: center;
-          min-width: 25px;
-          height: 25px;
-          padding: 0 7px;
-          margin-left: 7px;
-          border-radius: 20px;
-          background: #fee2e2;
-          color: #b91c1c;
-          font-size: 10px;
-          font-weight: 900;
+          gap: 8px;
         }
 
-        @media (max-width: 1100px) {
+        .admin-clear-search {
+          min-height: 42px;
+          border: 1px solid #fecaca;
+          border-radius: 10px;
+          padding: 9px 12px;
+          background: #fff1f2;
+          color: #b91c1c;
+          font-size: 11px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        @media (max-width: 1150px) {
           .admin-stats {
             grid-template-columns:
               repeat(3, minmax(0, 1fr));
@@ -998,9 +1221,14 @@ export default function AdminDashboard() {
             grid-template-columns:
               repeat(2, minmax(0, 1fr));
           }
+
+          .admin-quick {
+            grid-template-columns:
+              repeat(2, minmax(0, 1fr));
+          }
         }
 
-        @media (max-width: 800px) {
+        @media (max-width: 850px) {
           .admin-overview-grid {
             grid-template-columns: 1fr;
           }
@@ -1039,6 +1267,10 @@ export default function AdminDashboard() {
             flex-direction: column;
           }
 
+          .admin-search-row {
+            width: 100%;
+          }
+
           .admin-search {
             width: 100%;
           }
@@ -1052,6 +1284,10 @@ export default function AdminDashboard() {
             align-items: flex-start;
             flex-direction: column;
           }
+
+          .admin-enquiry-status {
+            align-self: flex-start;
+          }
         }
 
         @media (max-width: 450px) {
@@ -1062,22 +1298,27 @@ export default function AdminDashboard() {
           .admin-hero-actions {
             flex-direction: column;
           }
+
+          .admin-quick {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
 
       <main className="admin-page">
         <div className="admin-container">
 
-          {/* HERO */}
           <section className="admin-hero">
             <div>
-              <h1>Admin Dashboard</h1>
+              <h1>
+                Admin Dashboard
+              </h1>
 
               <p>
-                Complete PROZPO platform overview
-                and management control center.
-                Manage users, properties, projects
-                and enquiries from one place.
+                Manage PROZPO users, properties,
+                projects, agents, builders and
+                customer enquiries from one central
+                administration panel.
               </p>
             </div>
 
@@ -1087,108 +1328,62 @@ export default function AdminDashboard() {
                 className="admin-btn"
                 onClick={postProperty}
               >
-                + Add Property
+                + Post Property
               </button>
 
               <button
                 type="button"
                 className="admin-btn secondary"
                 onClick={loadDashboard}
+                disabled={refreshing}
               >
-                ↻ Refresh
+                {refreshing
+                  ? "Refreshing..."
+                  : "↻ Refresh"}
               </button>
             </div>
           </section>
 
-          {/* TABS */}
+          {message && (
+            <div className="admin-message">
+              {message}
+            </div>
+          )}
+
           <div className="admin-tabs">
-            <button
-              type="button"
-              className={`admin-tab ${
-                activeTab === "overview"
-                  ? "active"
-                  : ""
-              }`}
-              onClick={() => {
-                setActiveTab("overview");
-                setSearch("");
-              }}
-            >
-              Overview
-            </button>
-
-            <button
-              type="button"
-              className={`admin-tab ${
-                activeTab === "properties"
-                  ? "active"
-                  : ""
-              }`}
-              onClick={() => {
-                setActiveTab("properties");
-                setSearch("");
-              }}
-            >
-              Properties
-            </button>
-
-            <button
-              type="button"
-              className={`admin-tab ${
-                activeTab === "users"
-                  ? "active"
-                  : ""
-              }`}
-              onClick={() => {
-                setActiveTab("users");
-                setSearch("");
-              }}
-            >
-              Users
-            </button>
-
-            <button
-              type="button"
-              className={`admin-tab ${
-                activeTab === "projects"
-                  ? "active"
-                  : ""
-              }`}
-              onClick={() => {
-                setActiveTab("projects");
-                setSearch("");
-              }}
-            >
-              Projects
-            </button>
-
-            <button
-              type="button"
-              className={`admin-tab ${
-                activeTab === "enquiries"
-                  ? "active"
-                  : ""
-              }`}
-              onClick={() => {
-                setActiveTab("enquiries");
-                setSearch("");
-              }}
-            >
-              Enquiries
-              {stats.newEnquiries > 0 && (
-                <span className="admin-count">
-                  {stats.newEnquiries}
-                </span>
-              )}
-            </button>
+            {[
+              ["overview", "Overview"],
+              ["properties", "Properties"],
+              ["users", "Users"],
+              ["projects", "Projects"],
+              ["enquiries", "Enquiries"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`admin-tab ${
+                  activeTab === value
+                    ? "active"
+                    : ""
+                }`}
+                onClick={() => {
+                  setActiveTab(value);
+                  setSearch("");
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-          {/* STATS */}
           <section className="admin-stats">
+
             <div className="admin-stat">
-              <div className="admin-stat-icon">👥</div>
+              <div className="admin-stat-icon">
+                👥
+              </div>
               <div className="admin-stat-label">
-                Total Users
+                Users
               </div>
               <div className="admin-stat-value">
                 {stats.users}
@@ -1196,7 +1391,9 @@ export default function AdminDashboard() {
             </div>
 
             <div className="admin-stat">
-              <div className="admin-stat-icon">🏠</div>
+              <div className="admin-stat-icon">
+                🏠
+              </div>
               <div className="admin-stat-label">
                 Properties
               </div>
@@ -1206,37 +1403,43 @@ export default function AdminDashboard() {
             </div>
 
             <div className="admin-stat">
-              <div className="admin-stat-icon">🟢</div>
+              <div className="admin-stat-icon">
+                🏗️
+              </div>
               <div className="admin-stat-label">
-                Active Properties
+                Projects
               </div>
               <div className="admin-stat-value">
-                {stats.activeProperties}
+                {stats.projects}
               </div>
             </div>
 
             <div className="admin-stat">
-              <div className="admin-stat-icon">⏳</div>
+              <div className="admin-stat-icon">
+                📩
+              </div>
               <div className="admin-stat-label">
-                Pending Properties
+                Enquiries
               </div>
               <div className="admin-stat-value">
-                {stats.pendingProperties}
+                {stats.enquiries}
               </div>
             </div>
 
             <div className="admin-stat">
-              <div className="admin-stat-icon">📩</div>
+              <div className="admin-stat-icon">
+                👨‍💼
+              </div>
               <div className="admin-stat-label">
-                New Enquiries
+                Agents
               </div>
               <div className="admin-stat-value">
-                {stats.newEnquiries}
+                {stats.agents}
               </div>
             </div>
+
           </section>
 
-          {/* OVERVIEW */}
           {activeTab === "overview" && (
             <>
               <div className="admin-overview-grid">
@@ -1244,35 +1447,79 @@ export default function AdminDashboard() {
                 <section className="admin-section">
                   <div className="admin-section-head">
                     <div>
-                      <h2>Platform Summary</h2>
+                      <h2>
+                        Platform Overview
+                      </h2>
+
                       <p>
-                        Current marketplace statistics
+                        Current PROZPO platform
+                        statistics.
                       </p>
                     </div>
                   </div>
 
                   <div className="admin-mini-list">
+
                     <div className="admin-mini-item">
                       <div>
-                        <strong>Projects</strong>
+                        <strong>
+                          Active Properties
+                        </strong>
                         <br />
                         <span>
-                          Total projects listed
+                          Currently available
+                          listings
                         </span>
                       </div>
+
                       <div className="admin-mini-number">
-                        {stats.projects}
+                        {stats.activeProperties}
                       </div>
                     </div>
 
                     <div className="admin-mini-item">
                       <div>
-                        <strong>Active Projects</strong>
+                        <strong>
+                          Pending Properties
+                        </strong>
                         <br />
                         <span>
-                          Ongoing / published
+                          Listings under review
                         </span>
                       </div>
+
+                      <div className="admin-mini-number">
+                        {stats.pendingProperties}
+                      </div>
+                    </div>
+
+                    <div className="admin-mini-item">
+                      <div>
+                        <strong>
+                          Sold Properties
+                        </strong>
+                        <br />
+                        <span>
+                          Completed listings
+                        </span>
+                      </div>
+
+                      <div className="admin-mini-number">
+                        {stats.soldProperties}
+                      </div>
+                    </div>
+
+                    <div className="admin-mini-item">
+                      <div>
+                        <strong>
+                          Active Projects
+                        </strong>
+                        <br />
+                        <span>
+                          Running projects
+                        </span>
+                      </div>
+
                       <div className="admin-mini-number">
                         {stats.activeProjects}
                       </div>
@@ -1280,71 +1527,369 @@ export default function AdminDashboard() {
 
                     <div className="admin-mini-item">
                       <div>
-                        <strong>Agents</strong>
+                        <strong>
+                          New Enquiries
+                        </strong>
                         <br />
                         <span>
-                          Registered agents
+                          Require attention
                         </span>
                       </div>
+
                       <div className="admin-mini-number">
-                        {stats.agents}
+                        {stats.newEnquiries}
                       </div>
                     </div>
 
-                    <div className="admin-mini-item">
-                      <div>
-                        <strong>Builders</strong>
-                        <br />
-                        <span>
-                          Registered builders
-                        </span>
-                      </div>
-                      <div className="admin-mini-number">
-                        {stats.builders}
-                      </div>
-                    </div>
-
-                    <div className="admin-mini-item">
-                      <div>
-                        <strong>Total Enquiries</strong>
-                        <br />
-                        <span>
-                          Customer enquiries
-                        </span>
-                      </div>
-                      <div className="admin-mini-number">
-                        {stats.enquiries}
-                      </div>
-                    </div>
                   </div>
                 </section>
 
                 <section className="admin-section">
                   <div className="admin-section-head">
                     <div>
-                      <h2>Latest Enquiries</h2>
+                      <h2>
+                        Quick Actions
+                      </h2>
+
                       <p>
-                        Recent customer activity
+                        Common administration
+                        shortcuts.
                       </p>
                     </div>
                   </div>
 
-                  {enquiries.length === 0 ? (
-                    <div className="admin-empty">
-                      <div className="admin-empty-icon">
+                  <div className="admin-quick">
+
+                    <button
+                      type="button"
+                      className="admin-quick-btn"
+                      onClick={() =>
+                        setActiveTab("users")
+                      }
+                    >
+                      <div className="admin-quick-icon">
+                        👥
+                      </div>
+
+                      <div className="admin-quick-title">
+                        Manage Users
+                      </div>
+
+                      <div className="admin-quick-text">
+                        View registered users
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="admin-quick-btn"
+                      onClick={() =>
+                        setActiveTab("properties")
+                      }
+                    >
+                      <div className="admin-quick-icon">
+                        🏠
+                      </div>
+
+                      <div className="admin-quick-title">
+                        Properties
+                      </div>
+
+                      <div className="admin-quick-text">
+                        Monitor listings
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="admin-quick-btn"
+                      onClick={() =>
+                        setActiveTab("projects")
+                      }
+                    >
+                      <div className="admin-quick-icon">
+                        🏗️
+                      </div>
+
+                      <div className="admin-quick-title">
+                        Projects
+                      </div>
+
+                      <div className="admin-quick-text">
+                        Manage projects
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="admin-quick-btn"
+                      onClick={openEnquiries}
+                    >
+                      <div className="admin-quick-icon">
                         📩
                       </div>
-                      <h3>No Enquiries Yet</h3>
-                      <p>
-                        Customer enquiries will appear
-                        here.
-                      </p>
+
+                      <div className="admin-quick-title">
+                        Enquiries
+                      </div>
+
+                      <div className="admin-quick-text">
+                        Customer leads
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="admin-quick-btn"
+                      onClick={() =>
+                        setActiveTab("users")
+                      }
+                    >
+                      <div className="admin-quick-icon">
+                        👨‍💼
+                      </div>
+
+                      <div className="admin-quick-title">
+                        Agents
+                      </div>
+
+                      <div className="admin-quick-text">
+                        {stats.agents} agents
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="admin-quick-btn"
+                      onClick={() =>
+                        setActiveTab("users")
+                      }
+                    >
+                      <div className="admin-quick-icon">
+                        🏢
+                      </div>
+
+                      <div className="admin-quick-title">
+                        Builders
+                      </div>
+
+                      <div className="admin-quick-text">
+                        {stats.builders} builders
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="admin-quick-btn"
+                      onClick={postProperty}
+                    >
+                      <div className="admin-quick-icon">
+                        ➕
+                      </div>
+
+                      <div className="admin-quick-title">
+                        Post Property
+                      </div>
+
+                      <div className="admin-quick-text">
+                        Add listing
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="admin-quick-btn"
+                      onClick={openProfile}
+                    >
+                      <div className="admin-quick-icon">
+                        ⚙️
+                      </div>
+
+                      <div className="admin-quick-title">
+                        Admin Profile
+                      </div>
+
+                      <div className="admin-quick-text">
+                        Account settings
+                      </div>
+                    </button>
+
+                  </div>
+                </section>
+
+              </div>
+
+              <section className="admin-section">
+                <div className="admin-section-head">
+                  <div>
+                    <h2>
+                      Recent Properties
+                    </h2>
+
+                    <p>
+                      Latest property listings
+                      on PROZPO.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="admin-btn"
+                    style={{
+                      minHeight: "38px",
+                      padding: "9px 14px",
+                      border:
+                        "1px solid #fecaca",
+                      background: "#fff1f2",
+                    }}
+                    onClick={() =>
+                      setActiveTab("properties")
+                    }
+                  >
+                    View All
+                  </button>
+                </div>
+
+                {properties.length === 0 ? (
+                  <div className="admin-empty">
+                    <div className="admin-empty-icon">
+                      🏠
                     </div>
-                  ) : (
-                    <div className="admin-enquiries">
-                      {enquiries
-                        .slice(0, 5)
-                        .map((enquiry, index) => (
+
+                    <h3>
+                      No Properties
+                    </h3>
+
+                    <p>
+                      Property listings will
+                      appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="admin-properties">
+                    {properties
+                      .slice(0, 6)
+                      .map(
+                        (property, index) => (
+                          <article
+                            className="admin-property"
+                            key={
+                              property.id ||
+                              `property-${index}`
+                            }
+                          >
+                            <div className="admin-property-image">
+                              <img
+                                src={imageFor(
+                                  property
+                                )}
+                                alt={
+                                  property.title ||
+                                  "Property"
+                                }
+                                loading="lazy"
+                              />
+
+                              <span
+                                className={`admin-status ${statusClass(
+                                  property.status
+                                )}`}
+                              >
+                                {property.status ||
+                                  "Active"}
+                              </span>
+                            </div>
+
+                            <div className="admin-property-body">
+                              <h3>
+                                {property.title ||
+                                  "Untitled Property"}
+                              </h3>
+
+                              <p>
+                                📍{" "}
+                                {property.location ||
+                                  property.city ||
+                                  property.state ||
+                                  "Location unavailable"}
+                              </p>
+
+                              <div className="admin-property-price">
+                                {money(
+                                  property.price
+                                )}
+                              </div>
+
+                              <button
+                                type="button"
+                                className="admin-property-btn"
+                                onClick={() =>
+                                  viewProperty(
+                                    property.id
+                                  )
+                                }
+                              >
+                                View Property
+                              </button>
+                            </div>
+                          </article>
+                        )
+                      )}
+                  </div>
+                )}
+              </section>
+
+              <section className="admin-section">
+                <div className="admin-section-head">
+                  <div>
+                    <h2>
+                      Recent Enquiries
+                    </h2>
+
+                    <p>
+                      Latest customer enquiries.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="admin-btn"
+                    style={{
+                      minHeight: "38px",
+                      padding: "9px 14px",
+                      border:
+                        "1px solid #fecaca",
+                      background: "#fff1f2",
+                    }}
+                    onClick={() =>
+                      setActiveTab("enquiries")
+                    }
+                  >
+                    View All
+                  </button>
+                </div>
+
+                {enquiries.length === 0 ? (
+                  <div className="admin-empty">
+                    <div className="admin-empty-icon">
+                      📩
+                    </div>
+
+                    <h3>
+                      No Enquiries
+                    </h3>
+
+                    <p>
+                      Customer enquiries will
+                      appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="admin-enquiries">
+                    {enquiries
+                      .slice(0, 6)
+                      .map(
+                        (enquiry, index) => (
                           <div
                             className="admin-enquiry"
                             key={
@@ -1360,12 +1905,20 @@ export default function AdminDashboard() {
                               </h3>
 
                               <p>
+                                Property:{" "}
                                 {getProjectName(
                                   enquiry
                                 )}
                               </p>
 
                               <p>
+                                Phone:{" "}
+                                {enquiry.phone ||
+                                  "Not provided"}
+                              </p>
+
+                              <p>
+                                Received:{" "}
                                 {getDate(
                                   enquiry.created_at
                                 )}
@@ -1377,117 +1930,14 @@ export default function AdminDashboard() {
                                 "New"}
                             </span>
                           </div>
-                        ))}
-                    </div>
-                  )}
-                </section>
-
-              </div>
-
-              <section className="admin-section">
-                <div className="admin-section-head">
-                  <div>
-                    <h2>Recent Properties</h2>
-                    <p>
-                      Latest property listings on PROZPO
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="admin-property-btn"
-                    style={{
-                      width: "auto",
-                      padding: "10px 15px",
-                    }}
-                    onClick={() =>
-                      setActiveTab("properties")
-                    }
-                  >
-                    View All Properties
-                  </button>
-                </div>
-
-                {properties.length === 0 ? (
-                  <div className="admin-empty">
-                    <div className="admin-empty-icon">
-                      🏠
-                    </div>
-                    <h3>No Properties Found</h3>
-                    <p>
-                      Property listings will appear here.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="admin-properties">
-                    {properties
-                      .slice(0, 6)
-                      .map((property, index) => (
-                        <article
-                          className="admin-property"
-                          key={
-                            property.id ||
-                            `property-${index}`
-                          }
-                        >
-                          <div className="admin-property-image">
-                            <img
-                              src={imageFor(property)}
-                              alt={
-                                property.title ||
-                                "Property"
-                              }
-                              loading="lazy"
-                            />
-
-                            <span
-                              className={`admin-status ${statusClass(
-                                property.status
-                              )}`}
-                            >
-                              {property.status ||
-                                "Active"}
-                            </span>
-                          </div>
-
-                          <div className="admin-property-body">
-                            <h3>
-                              {property.title ||
-                                "Untitled Property"}
-                            </h3>
-
-                            <p>
-                              📍{" "}
-                              {property.location ||
-                                property.city ||
-                                "Location unavailable"}
-                            </p>
-
-                            <div className="admin-property-price">
-                              {money(property.price)}
-                            </div>
-
-                            <button
-                              type="button"
-                              className="admin-property-btn"
-                              onClick={() =>
-                                viewProperty(
-                                  property.id
-                                )
-                              }
-                            >
-                              View Property
-                            </button>
-                          </div>
-                        </article>
-                      ))}
+                        )
+                      )}
                   </div>
                 )}
               </section>
             </>
           )}
 
-          {/* PROPERTIES */}
           {activeTab === "properties" && (
             <section className="admin-section">
               <div className="admin-section-head">
@@ -1495,33 +1945,52 @@ export default function AdminDashboard() {
                   <h2>
                     Property Management
                   </h2>
+
                   <p>
-                    Review and manage marketplace
+                    Search and monitor all
                     property listings.
                   </p>
                 </div>
 
-                <input
-                  className="admin-search"
-                  type="search"
-                  value={search}
-                  onChange={(event) =>
-                    setSearch(event.target.value)
-                  }
-                  placeholder="Search properties..."
-                />
+                <div className="admin-search-row">
+                  <input
+                    className="admin-search"
+                    type="search"
+                    value={search}
+                    onChange={(event) =>
+                      setSearch(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Search properties..."
+                  />
+
+                  {search && (
+                    <button
+                      type="button"
+                      className="admin-clear-search"
+                      onClick={clearSearch}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {filteredProperties.length === 0 ? (
+              {filteredProperties.length ===
+              0 ? (
                 <div className="admin-empty">
                   <div className="admin-empty-icon">
                     🔎
                   </div>
+
                   <h3>
                     No Properties Found
                   </h3>
+
                   <p>
-                    Try another search term.
+                    No property matched your
+                    search.
                   </p>
                 </div>
               ) : (
@@ -1537,7 +2006,9 @@ export default function AdminDashboard() {
                       >
                         <div className="admin-property-image">
                           <img
-                            src={imageFor(property)}
+                            src={imageFor(
+                              property
+                            )}
                             alt={
                               property.title ||
                               "Property"
@@ -1569,15 +2040,18 @@ export default function AdminDashboard() {
                           </p>
 
                           <p>
+                            Type:{" "}
                             {property.property_type ||
-                              "Property"}{" "}
-                            •{" "}
+                              "—"}
+                            {" • "}
                             {property.listing_type ||
-                              "Sale"}
+                              "—"}
                           </p>
 
                           <div className="admin-property-price">
-                            {money(property.price)}
+                            {money(
+                              property.price
+                            )}
                           </div>
 
                           <button
@@ -1589,7 +2063,7 @@ export default function AdminDashboard() {
                               )
                             }
                           >
-                            View Property
+                            Open Property
                           </button>
                         </div>
                       </article>
@@ -1600,39 +2074,59 @@ export default function AdminDashboard() {
             </section>
           )}
 
-          {/* USERS */}
           {activeTab === "users" && (
             <section className="admin-section">
               <div className="admin-section-head">
                 <div>
-                  <h2>User Management</h2>
+                  <h2>
+                    User Management
+                  </h2>
+
                   <p>
-                    Registered PROZPO users and account
-                    roles.
+                    Registered PROZPO profile
+                    accounts.
                   </p>
                 </div>
 
-                <input
-                  className="admin-search"
-                  type="search"
-                  value={search}
-                  onChange={(event) =>
-                    setSearch(event.target.value)
-                  }
-                  placeholder="Search users..."
-                />
+                <div className="admin-search-row">
+                  <input
+                    className="admin-search"
+                    type="search"
+                    value={search}
+                    onChange={(event) =>
+                      setSearch(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Search users..."
+                  />
+
+                  {search && (
+                    <button
+                      type="button"
+                      className="admin-clear-search"
+                      onClick={clearSearch}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {filteredUsers.length === 0 ? (
+              {filteredUsers.length ===
+              0 ? (
                 <div className="admin-empty">
                   <div className="admin-empty-icon">
                     👥
                   </div>
+
                   <h3>
                     No Users Found
                   </h3>
+
                   <p>
-                    No users match your search.
+                    No registered profiles
+                    matched your search.
                   </p>
                 </div>
               ) : (
@@ -1640,11 +2134,29 @@ export default function AdminDashboard() {
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th>User</th>
-                        <th>Phone</th>
-                        <th>Role</th>
-                        <th>City</th>
-                        <th>Status</th>
+                        <th>
+                          User
+                        </th>
+
+                        <th>
+                          Phone
+                        </th>
+
+                        <th>
+                          Role
+                        </th>
+
+                        <th>
+                          City
+                        </th>
+
+                        <th>
+                          Status
+                        </th>
+
+                        <th>
+                          Joined
+                        </th>
                       </tr>
                     </thead>
 
@@ -1660,19 +2172,20 @@ export default function AdminDashboard() {
                           >
                             <td>
                               <div className="admin-user-name">
-                                {getUserName(user)}
+                                {getUserName(
+                                  user
+                                )}
                               </div>
 
-                              {user.email && (
-                                <div className="admin-user-email">
-                                  {user.email}
-                                </div>
-                              )}
+                              <div className="admin-user-email">
+                                {user.email ||
+                                  "No email"}
+                              </div>
                             </td>
 
                             <td>
                               {user.phone ||
-                                "Not provided"}
+                                "—"}
                             </td>
 
                             <td>
@@ -1695,8 +2208,14 @@ export default function AdminDashboard() {
                             <td>
                               <span className="admin-status-inline">
                                 {user.status ||
-                                  "Active"}
+                                  "active"}
                               </span>
+                            </td>
+
+                            <td>
+                              {getDate(
+                                user.created_at
+                              )}
                             </td>
                           </tr>
                         )
@@ -1708,39 +2227,59 @@ export default function AdminDashboard() {
             </section>
           )}
 
-          {/* PROJECTS */}
           {activeTab === "projects" && (
             <section className="admin-section">
               <div className="admin-section-head">
                 <div>
-                  <h2>Project Management</h2>
+                  <h2>
+                    Project Management
+                  </h2>
+
                   <p>
-                    Builder projects and developments
+                    Manage real-estate projects
                     listed on PROZPO.
                   </p>
                 </div>
 
-                <input
-                  className="admin-search"
-                  type="search"
-                  value={search}
-                  onChange={(event) =>
-                    setSearch(event.target.value)
-                  }
-                  placeholder="Search projects..."
-                />
+                <div className="admin-search-row">
+                  <input
+                    className="admin-search"
+                    type="search"
+                    value={search}
+                    onChange={(event) =>
+                      setSearch(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Search projects..."
+                  />
+
+                  {search && (
+                    <button
+                      type="button"
+                      className="admin-clear-search"
+                      onClick={clearSearch}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {filteredProjects.length === 0 ? (
+              {filteredProjects.length ===
+              0 ? (
                 <div className="admin-empty">
                   <div className="admin-empty-icon">
                     🏗️
                   </div>
+
                   <h3>
                     No Projects Found
                   </h3>
+
                   <p>
-                    Projects will appear here.
+                    Projects will appear here
+                    after they are added.
                   </p>
                 </div>
               ) : (
@@ -1756,7 +2295,9 @@ export default function AdminDashboard() {
                       >
                         <div className="admin-project-image">
                           <img
-                            src={projectImage(project)}
+                            src={projectImage(
+                              project
+                            )}
                             alt={
                               project.name ||
                               "Project"
@@ -1768,14 +2309,14 @@ export default function AdminDashboard() {
                         <div className="admin-project-body">
                           <h3>
                             {project.name ||
-                              project.title ||
-                              "Untitled Project"}
+                              "Unnamed Project"}
                           </h3>
 
                           <p>
                             📍{" "}
                             {project.location ||
                               project.city ||
+                              project.state ||
                               "Location unavailable"}
                           </p>
 
@@ -1786,9 +2327,18 @@ export default function AdminDashboard() {
                           </p>
 
                           <div className="admin-project-price">
-                            {money(
-                              project.price_from
-                            )}
+                            {project.price_from ||
+                            project.price_to
+                              ? `${money(
+                                  project.price_from
+                                )} ${
+                                  project.price_to
+                                    ? `- ${money(
+                                        project.price_to
+                                      )}`
+                                    : ""
+                                }`
+                              : "Price on Request"}
                           </div>
 
                           <button
@@ -1811,39 +2361,59 @@ export default function AdminDashboard() {
             </section>
           )}
 
-          {/* ENQUIRIES */}
           {activeTab === "enquiries" && (
             <section className="admin-section">
               <div className="admin-section-head">
                 <div>
-                  <h2>Enquiry Management</h2>
+                  <h2>
+                    Enquiry Management
+                  </h2>
+
                   <p>
-                    Customer enquiries received across
-                    the marketplace.
+                    Review customer leads and
+                    property enquiries.
                   </p>
                 </div>
 
-                <input
-                  className="admin-search"
-                  type="search"
-                  value={search}
-                  onChange={(event) =>
-                    setSearch(event.target.value)
-                  }
-                  placeholder="Search enquiries..."
-                />
+                <div className="admin-search-row">
+                  <input
+                    className="admin-search"
+                    type="search"
+                    value={search}
+                    onChange={(event) =>
+                      setSearch(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Search enquiries..."
+                  />
+
+                  {search && (
+                    <button
+                      type="button"
+                      className="admin-clear-search"
+                      onClick={clearSearch}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {filteredEnquiries.length === 0 ? (
+              {filteredEnquiries.length ===
+              0 ? (
                 <div className="admin-empty">
                   <div className="admin-empty-icon">
                     📩
                   </div>
+
                   <h3>
                     No Enquiries Found
                   </h3>
+
                   <p>
-                    Customer enquiries will appear here.
+                    Customer enquiries will
+                    appear here.
                   </p>
                 </div>
               ) : (
@@ -1865,10 +2435,16 @@ export default function AdminDashboard() {
                           </h3>
 
                           <p>
-                            Property:{" "}
+                            Property / Project:{" "}
                             {getProjectName(
                               enquiry
                             )}
+                          </p>
+
+                          <p>
+                            Email:{" "}
+                            {enquiry.email ||
+                              "Not provided"}
                           </p>
 
                           <p>
@@ -1876,13 +2452,6 @@ export default function AdminDashboard() {
                             {enquiry.phone ||
                               "Not provided"}
                           </p>
-
-                          {enquiry.email && (
-                            <p>
-                              Email:{" "}
-                              {enquiry.email}
-                            </p>
-                          )}
 
                           {enquiry.message && (
                             <p>
@@ -1899,7 +2468,11 @@ export default function AdminDashboard() {
                           </p>
                         </div>
 
-                        <span className="admin-enquiry-status">
+                        <span
+                          className={`admin-status ${statusClass(
+                            enquiry.status
+                          )}`}
+                        >
                           {enquiry.status ||
                             "New"}
                         </span>
