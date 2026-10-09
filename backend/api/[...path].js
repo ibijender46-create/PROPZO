@@ -1,4 +1,3 @@
-
 const { createClient } = require("@supabase/supabase-js");
 const { askOpenAI, askGemini } = require("../lib/ai");
 
@@ -14,6 +13,11 @@ const supabase =
         },
       })
     : null;
+
+// ==========================================
+// PROZPO API CONTRACT
+// Keep existing frontend route names stable.
+// ==========================================
 
 const TABLES = {
   properties: "properties",
@@ -36,81 +40,209 @@ const TABLES = {
 
 const FIELDS = {
   properties: [
-    "title", "location", "city", "state",
-    "property_type", "listing_type", "price",
-    "area", "area_unit", "bedrooms", "bathrooms",
-    "furnishing", "possession", "description",
-    "image_url", "status",
-  ],
-  projects: [
-    "name", "description", "developer", "location",
-    "city", "state", "price_from", "price_to",
-    "status", "image_url",
-  ],
-  agents: [
-    "name", "phone", "email", "company",
-    "city", "state", "bio", "image_url", "status",
-  ],
-  builders: [
-    "company_name", "name", "phone", "email",
-    "city", "state", "description", "image_url",
+    "user_id",
+    "title",
+    "location",
+    "city",
+    "state",
+    "property_type",
+    "listing_type",
+    "price",
+    "area",
+    "area_unit",
+    "bedrooms",
+    "bathrooms",
+    "furnishing",
+    "possession",
+    "description",
+    "image_url",
     "status",
   ],
+
+  projects: [
+    "user_id",
+    "name",
+    "description",
+    "developer",
+    "location",
+    "city",
+    "state",
+    "price_from",
+    "price_to",
+    "status",
+    "image_url",
+  ],
+
+  agents: [
+    "user_id",
+    "name",
+    "phone",
+    "email",
+    "company",
+    "city",
+    "state",
+    "bio",
+    "image_url",
+    "status",
+  ],
+
+  builders: [
+    "user_id",
+    "company_name",
+    "name",
+    "phone",
+    "email",
+    "city",
+    "state",
+    "description",
+    "image_url",
+    "status",
+  ],
+
   enquiries: [
-    "property_id", "project_id", "user_id",
-    "name", "email", "phone", "message", "status",
+    "property_id",
+    "project_id",
+    "user_id",
+    "name",
+    "email",
+    "phone",
+    "message",
+    "status",
   ],
+
   favorites: [
-    "user_id", "property_id", "project_id",
+    "user_id",
+    "property_id",
+    "project_id",
   ],
+
   "property-images": [
-    "property_id", "image_url", "is_primary",
-    "sort_order", "user_id",
+    "property_id",
+    "image_url",
+    "is_primary",
+    "sort_order",
+    "user_id",
+    "media_type",
+    "storage_path",
+    "file_name",
   ],
+
   reviews: [
-    "property_id", "user_id", "rating",
-    "review", "status",
+    "property_id",
+    "user_id",
+    "rating",
+    "review",
+    "status",
   ],
+
   notifications: [
-    "user_id", "title", "message", "type", "is_read",
+    "user_id",
+    "title",
+    "message",
+    "type",
+    "is_read",
   ],
+
   profiles: [
-    "user_id", "name", "email", "phone",
-    "city", "state", "role", "status", "bio",
+    "user_id",
+    "name",
+    "email",
+    "phone",
+    "city",
+    "state",
+    "role",
+    "status",
+    "bio",
   ],
+
   amenities: ["name", "icon"],
-  locations: ["city", "state", "locality", "pincode"],
-  "property-amenities": ["property_id", "amenity_id"],
+
+  locations: [
+    "city",
+    "state",
+    "locality",
+    "pincode",
+  ],
+
+  "property-amenities": [
+    "property_id",
+    "amenity_id",
+  ],
+
   "property-views": [
-    "property_id", "user_id", "session_id",
+    "property_id",
+    "user_id",
+    "session_id",
   ],
+
   reports: [
-    "user_id", "property_id", "project_id",
-    "reason", "description", "status",
+    "user_id",
+    "property_id",
+    "project_id",
+    "reason",
+    "description",
+    "status",
   ],
-  "saved-searches": ["user_id", "name", "filters"],
+
+  "saved-searches": [
+    "user_id",
+    "name",
+    "filters",
+  ],
 };
 
 const ORDERABLE_TABLES = new Set([
-  "properties", "projects", "agents", "builders",
-  "enquiries", "favorites", "property-images",
-  "reviews", "notifications", "profiles",
-  "amenities", "locations", "property-views",
-  "reports", "saved-searches",
+  "properties",
+  "projects",
+  "agents",
+  "builders",
+  "enquiries",
+  "favorites",
+  "property-images",
+  "reviews",
+  "notifications",
+  "profiles",
+  "property-views",
+  "reports",
+  "saved-searches",
 ]);
 
 const PUBLIC_GET = new Set([
-  "properties", "projects", "agents", "builders",
-  "amenities", "locations", "property-amenities",
-  "property-images", "reviews",
+  "properties",
+  "projects",
+  "agents",
+  "builders",
+  "amenities",
+  "locations",
+  "property-amenities",
+  "property-images",
+  "reviews",
 ]);
 
 const USER_OWNED = new Set([
-  "properties", "projects", "agents", "builders",
-  "enquiries", "favorites", "property-images",
-  "reviews", "notifications", "profiles",
-  "property-views", "reports", "saved-searches",
+  "properties",
+  "projects",
+  "agents",
+  "builders",
+  "enquiries",
+  "favorites",
+  "property-images",
+  "reviews",
+  "notifications",
+  "profiles",
+  "property-views",
+  "reports",
+  "saved-searches",
 ]);
+
+const PUBLIC_CREATE = new Set([
+  "enquiries",
+  "property-views",
+]);
+
+// ==========================================
+// RESPONSE HELPERS
+// ==========================================
 
 function sendError(res, status, message) {
   return res.status(status).json({
@@ -159,27 +291,63 @@ function cleanFields(route, body) {
   return result;
 }
 
+function responseKey(route) {
+  const keys = {
+    "property-images": "images",
+    "property-amenities": "property_amenities",
+    "property-views": "property_views",
+    "saved-searches": "saved_searches",
+  };
+
+  return keys[route] || route;
+}
+
+function sendRecords(res, route, data) {
+  return res.status(200).json({
+    success: true,
+    [responseKey(route)]: data || [],
+  });
+}
+
+// ==========================================
+// CORS
+// ==========================================
+
 function setCors(req, res) {
-  const configuredOrigin = process.env.FRONTEND_URL;
+  const configuredOrigin = (
+    process.env.FRONTEND_URL || ""
+  ).replace(/\/+$/, "");
+
   const requestOrigin = req.headers.origin;
 
-  // Allow the configured frontend. Permit requests without Origin
-  // for health checks and server-to-server calls.
-  const allowedOrigin =
-    configuredOrigin || requestOrigin || "*";
+  if (
+    requestOrigin &&
+    (!configuredOrigin || requestOrigin === configuredOrigin)
+  ) {
+    res.setHeader(
+      "Access-Control-Allow-Origin",
+      requestOrigin
+    );
+  }
 
-  res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
   res.setHeader("Vary", "Origin");
+
   res.setHeader(
     "Access-Control-Allow-Methods",
     "GET,POST,PUT,PATCH,DELETE,OPTIONS"
   );
+
   res.setHeader(
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization"
   );
+
   res.setHeader("Access-Control-Max-Age", "86400");
 }
+
+// ==========================================
+// AUTHENTICATION
+// ==========================================
 
 async function getUser(req) {
   const header = req.headers.authorization || "";
@@ -189,9 +357,11 @@ async function getUser(req) {
   }
 
   const token = header.slice(7).trim();
+
   if (!token) return null;
 
-  const { data, error } = await supabase.auth.getUser(token);
+  const { data, error } =
+    await supabase.auth.getUser(token);
 
   if (error || !data?.user) return null;
 
@@ -224,39 +394,40 @@ async function getProfile(userId) {
 async function isAdmin(userId) {
   const profile = await getProfile(userId);
 
-  return String(profile?.role || "").toLowerCase() === "admin";
+  return (
+    String(profile?.role || "").toLowerCase() === "admin"
+  );
 }
 
-function responseKey(route) {
-  const keys = {
-    "property-images": "images",
-    "property-amenities": "property_amenities",
-    "property-views": "property_views",
-    "saved-searches": "saved_searches",
-  };
-
-  return keys[route] || route;
-}
-
-function sendRecords(res, route, data) {
-  return res.status(200).json({
-    success: true,
-    [responseKey(route)]: data || [],
-  });
-}
+// ==========================================
+// FILTERS
+// ==========================================
 
 function applyFilters(query, route, req) {
-  const { id, property_id, project_id, city, state } = req.query || {};
+  const {
+    id,
+    property_id,
+    project_id,
+    city,
+    state,
+  } = req.query || {};
 
-  if (id && FIELDS[route]?.includes("id")) {
+  // Supports GET /api/properties/:id
+  if (id) {
     query = query.eq("id", id);
   }
 
   if (
     property_id &&
-    ["enquiries", "favorites", "property-images",
-      "property-views", "reviews", "reports",
-      "property-amenities"].includes(route)
+    [
+      "enquiries",
+      "favorites",
+      "property-images",
+      "property-views",
+      "reviews",
+      "reports",
+      "property-amenities",
+    ].includes(route)
   ) {
     query = query.eq("property_id", property_id);
   }
@@ -268,24 +439,48 @@ function applyFilters(query, route, req) {
     query = query.eq("project_id", project_id);
   }
 
-  if (city && ["properties", "projects", "agents", "builders"].includes(route)) {
-    query = query.ilike("city", `%${String(city).slice(0, 100)}%`);
+  if (
+    city &&
+    ["properties", "projects", "agents", "builders"].includes(route)
+  ) {
+    query = query.ilike(
+      "city",
+      `%${String(city).slice(0, 100)}%`
+    );
   }
 
-  if (state && ["properties", "projects", "agents", "builders"].includes(route)) {
-    query = query.ilike("state", `%${String(state).slice(0, 100)}%`);
+  if (
+    state &&
+    ["properties", "projects", "agents", "builders"].includes(route)
+  ) {
+    query = query.ilike(
+      "state",
+      `%${String(state).slice(0, 100)}%`
+    );
   }
 
   return query;
 }
 
-async function ensureRelatedPropertyOwnership(route, body, user, admin) {
+// ==========================================
+// OWNERSHIP VALIDATION
+// ==========================================
+
+async function ensureRelatedPropertyOwnership(
+  route,
+  body,
+  user,
+  admin
+) {
   if (admin) return true;
 
-  if (route === "property-amenities" || route === "property-images") {
+  if (
+    route === "property-amenities" ||
+    route === "property-images"
+  ) {
     const propertyId = body.property_id;
 
-    if (!propertyId) return false;
+    if (!propertyId || !user) return false;
 
     const { data, error } = await supabase
       .from("properties")
@@ -295,11 +490,17 @@ async function ensureRelatedPropertyOwnership(route, body, user, admin) {
 
     if (error) throw error;
 
-    return Boolean(data && data.user_id === user.id);
+    return Boolean(
+      data && data.user_id === user.id
+    );
   }
 
   return true;
 }
+
+// ==========================================
+// MAIN API HANDLER
+// ==========================================
 
 module.exports = async (req, res) => {
   setCors(req, res);
@@ -318,11 +519,16 @@ module.exports = async (req, res) => {
 
   try {
     const path = getRoute(req);
-    const route = path[0] || req.query?.route || "health";
+    const route =
+      path[0] || req.query?.route || "health";
     const id = path[1] || req.query?.id || null;
     const body = getBody(req);
 
+    // ========================================
     // HEALTH CHECK
+    // GET /api/health
+    // ========================================
+
     if (route === "health") {
       if (req.method !== "GET") {
         return sendError(res, 405, "Method not allowed");
@@ -339,23 +545,38 @@ module.exports = async (req, res) => {
         success: true,
         message: "PROZPO Backend + Supabase connected",
         database: "connected",
-        version: "2.1.0",
+        version: "3.0.0",
       });
     }
 
+    // ========================================
     // AUTHENTICATION
+    // POST /api/auth
+    // Body: { action, email, password, name? }
+    // ========================================
+
     if (route === "auth") {
       if (req.method !== "POST") {
         return sendError(res, 405, "Method not allowed");
       }
 
-      const action = String(body.action || "").toLowerCase();
-      const email = String(body.email || "").trim().toLowerCase();
+      const action = String(body.action || "")
+        .trim()
+        .toLowerCase();
+
+      const email = String(body.email || "")
+        .trim()
+        .toLowerCase();
+
       const password = String(body.password || "");
       const name = String(body.name || "").trim();
 
       if (!email || !password) {
-        return sendError(res, 400, "Email and password are required");
+        return sendError(
+          res,
+          400,
+          "Email and password are required"
+        );
       }
 
       if (action === "register") {
@@ -364,35 +585,45 @@ module.exports = async (req, res) => {
         }
 
         if (password.length < 6) {
-          return sendError(res, 400, "Password must be at least 6 characters");
+          return sendError(
+            res,
+            400,
+            "Password must be at least 6 characters"
+          );
         }
 
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { name } },
-        });
+        const { data, error } =
+          await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: { name },
+            },
+          });
 
         if (error) throw error;
 
         if (data.user) {
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .upsert(
-              {
-                user_id: data.user.id,
-                name,
-                email,
-                role: "owner",
-                status: "active",
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: "user_id" }
-            );
+          const { error: profileError } =
+            await supabase
+              .from("profiles")
+              .upsert(
+                {
+                  user_id: data.user.id,
+                  name,
+                  email,
+                  role: "owner",
+                  status: "active",
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: "user_id" }
+              );
 
           if (profileError) throw profileError;
         }
 
+        // Return the complete session when Supabase
+        // issues one. The frontend can persist it later.
         return res.status(200).json({
           success: true,
           message: data.session
@@ -423,30 +654,56 @@ module.exports = async (req, res) => {
       return sendError(res, 400, "Invalid auth action");
     }
 
+    // ========================================
     // AI
+    // POST /api/ai
+    // ========================================
+
     if (route === "ai") {
       if (req.method !== "POST") {
         return sendError(res, 405, "Method not allowed");
       }
 
       const prompt = String(body.prompt || "").trim();
-      const provider = String(body.provider || "openai").toLowerCase();
+      const provider = String(
+        body.provider || "openai"
+      ).toLowerCase();
 
-      if (!prompt) return sendError(res, 400, "Prompt is required");
+      if (!prompt) {
+        return sendError(res, 400, "Prompt is required");
+      }
 
-      const answer = provider === "gemini"
-        ? await askGemini(prompt)
-        : await askOpenAI(prompt);
+      if (prompt.length > 12000) {
+        return sendError(
+          res,
+          400,
+          "Prompt is too long"
+        );
+      }
+
+      const answer =
+        provider === "gemini"
+          ? await askGemini(prompt)
+          : await askOpenAI(prompt);
 
       return res.status(200).json({
         success: true,
-        provider: provider === "gemini" ? "gemini" : "openai",
+        provider:
+          provider === "gemini" ? "gemini" : "openai",
         answer,
       });
     }
 
+    // ========================================
     // PROFILE
-    if (route === "profile" || route === "profiles") {
+    // GET /api/profile
+    // PUT/PATCH/POST /api/profile
+    // ========================================
+
+    if (
+      route === "profile" ||
+      route === "profiles"
+    ) {
       const user = await requireUser(req, res);
       if (!user) return;
 
@@ -459,22 +716,38 @@ module.exports = async (req, res) => {
         });
       }
 
-      if (["PUT", "PATCH", "POST"].includes(req.method)) {
+      if (
+        ["PUT", "PATCH", "POST"].includes(req.method)
+      ) {
         const profileData = {};
 
-        for (const field of ["name", "phone", "city", "state", "bio"]) {
-          if (Object.prototype.hasOwnProperty.call(body, field)) {
+        for (const field of [
+          "name",
+          "phone",
+          "city",
+          "state",
+          "bio",
+        ]) {
+          if (
+            Object.prototype.hasOwnProperty.call(
+              body,
+              field
+            )
+          ) {
             profileData[field] = body[field];
           }
         }
 
         profileData.email = user.email || null;
         profileData.user_id = user.id;
-        profileData.updated_at = new Date().toISOString();
+        profileData.updated_at =
+          new Date().toISOString();
 
         const { data, error } = await supabase
           .from("profiles")
-          .upsert(profileData, { onConflict: "user_id" })
+          .upsert(profileData, {
+            onConflict: "user_id",
+          })
           .select()
           .single();
 
@@ -489,17 +762,29 @@ module.exports = async (req, res) => {
       return sendError(res, 405, "Method not allowed");
     }
 
+    // ========================================
+    // ROUTE VALIDATION
+    // ========================================
+
     const table = TABLES[route];
 
     if (!table) {
-      return sendError(res, 404, `API route not found: ${route}`);
+      return sendError(
+        res,
+        404,
+        `API route not found: ${route}`
+      );
     }
 
+    // ========================================
     // GET RECORDS
+    // ========================================
+
     if (req.method === "GET") {
       let query = supabase.from(table).select("*");
 
-      const mine = String(req.query?.mine || "") === "true";
+      const mine =
+        String(req.query?.mine || "") === "true";
 
       if (USER_OWNED.has(route) && mine) {
         const user = await requireUser(req, res);
@@ -507,7 +792,12 @@ module.exports = async (req, res) => {
 
         query = query.eq("user_id", user.id);
       } else if (
-        ["favorites", "notifications", "saved-searches", "reports"].includes(route)
+        [
+          "favorites",
+          "notifications",
+          "saved-searches",
+          "reports",
+        ].includes(route)
       ) {
         const user = await requireUser(req, res);
         if (!user) return;
@@ -531,7 +821,11 @@ module.exports = async (req, res) => {
         });
       }
 
-      const parsedLimit = Number.parseInt(req.query?.limit, 10);
+      const parsedLimit = Number.parseInt(
+        req.query?.limit,
+        10
+      );
+
       const limit = Number.isFinite(parsedLimit)
         ? Math.min(Math.max(parsedLimit, 1), 500)
         : 100;
@@ -539,15 +833,18 @@ module.exports = async (req, res) => {
       query = query.limit(limit);
 
       const { data, error } = await query;
+
       if (error) throw error;
 
       return sendRecords(res, route, data);
     }
 
+    // ========================================
     // CREATE RECORD
+    // ========================================
+
     if (req.method === "POST") {
-      const publicEnquiry = route === "enquiries";
-      const needsAuth = !publicEnquiry;
+      const needsAuth = !PUBLIC_CREATE.has(route);
 
       const user = needsAuth
         ? await requireUser(req, res)
@@ -557,22 +854,44 @@ module.exports = async (req, res) => {
 
       const insertData = cleanFields(route, body);
 
-      if (user && FIELDS[route]?.includes("user_id")) {
+      // Never trust a user_id sent by the browser.
+      if (
+        user &&
+        FIELDS[route].includes("user_id")
+      ) {
         insertData.user_id = user.id;
+      } else if (
+        FIELDS[route].includes("user_id")
+      ) {
+        insertData.user_id = null;
       }
 
-      // A new listing must always belong to the authenticated user.
-      if (route === "properties" && !user) {
-        return sendError(res, 401, "Authentication required");
-      }
-
+      // Property validation
       if (route === "properties") {
-        if (!String(insertData.title || "").trim()) {
-          return sendError(res, 400, "Property title is required");
+        if (!user) {
+          return sendError(
+            res,
+            401,
+            "Authentication required"
+          );
         }
 
-        if (!String(insertData.location || "").trim()) {
-          return sendError(res, 400, "Property location is required");
+        if (!String(insertData.title || "").trim()) {
+          return sendError(
+            res,
+            400,
+            "Property title is required"
+          );
+        }
+
+        if (
+          !String(insertData.location || "").trim()
+        ) {
+          return sendError(
+            res,
+            400,
+            "Property location is required"
+          );
         }
 
         if (
@@ -582,55 +901,122 @@ module.exports = async (req, res) => {
           !Number.isFinite(Number(insertData.price)) ||
           Number(insertData.price) < 0
         ) {
-          return sendError(res, 400, "A valid property price is required");
+          return sendError(
+            res,
+            400,
+            "A valid property price is required"
+          );
         }
 
         insertData.price = Number(insertData.price);
 
-        if (insertData.area !== undefined && insertData.area !== null && insertData.area !== "") {
+        if (
+          insertData.area !== undefined &&
+          insertData.area !== null &&
+          insertData.area !== ""
+        ) {
           insertData.area = Number(insertData.area);
-          if (!Number.isFinite(insertData.area) || insertData.area < 0) {
-            return sendError(res, 400, "Area must be a valid non-negative number");
+
+          if (
+            !Number.isFinite(insertData.area) ||
+            insertData.area < 0
+          ) {
+            return sendError(
+              res,
+              400,
+              "Area must be a valid non-negative number"
+            );
           }
         } else {
           insertData.area = null;
         }
 
-        for (const field of ["bedrooms", "bathrooms"]) {
-          if (insertData[field] === "" || insertData[field] === undefined) {
+        for (const field of [
+          "bedrooms",
+          "bathrooms",
+        ]) {
+          if (
+            insertData[field] === "" ||
+            insertData[field] === undefined
+          ) {
             insertData[field] = null;
           } else if (insertData[field] !== null) {
-            insertData[field] = Number(insertData[field]);
-            if (!Number.isFinite(insertData[field]) || insertData[field] < 0) {
-              return sendError(res, 400, `${field} must be a valid non-negative number`);
+            insertData[field] = Number(
+              insertData[field]
+            );
+
+            if (
+              !Number.isFinite(insertData[field]) ||
+              insertData[field] < 0
+            ) {
+              return sendError(
+                res,
+                400,
+                `${field} must be a valid non-negative number`
+              );
             }
           }
         }
 
-        insertData.status = insertData.status || "active";
+        insertData.status =
+          insertData.status || "active";
       }
 
+      // Public enquiries
       if (route === "enquiries") {
         if (!String(insertData.name || "").trim()) {
-          return sendError(res, 400, "Name is required for an enquiry");
+          return sendError(
+            res,
+            400,
+            "Name is required for an enquiry"
+          );
         }
 
-        if (!String(insertData.message || "").trim()) {
-          return sendError(res, 400, "Enquiry message is required");
+        if (
+          !String(insertData.message || "").trim()
+        ) {
+          return sendError(
+            res,
+            400,
+            "Enquiry message is required"
+          );
         }
 
-        if (user) insertData.user_id = user.id;
+        // Use authenticated identity only.
+        insertData.user_id = user ? user.id : null;
       }
 
-      if (route === "property-views" && !user) {
-        insertData.user_id = null;
+      // Anonymous or authenticated property views
+      if (route === "property-views") {
+        insertData.user_id = user ? user.id : null;
       }
 
+      // Verify ownership before attaching images or amenities.
       if (
-        ["property-images", "property-amenities"].includes(route) &&
-        !(await ensureRelatedPropertyOwnership(route, insertData, user, false))
+        [
+          "property-images",
+          "property-amenities",
+        ].includes(route)
       ) {
-        return sendError(res, 403, "You can only add details to your own property");
+        const admin = user
+          ? await isAdmin(user.id)
+          : false;
+
+        const allowed =
+          await ensureRelatedPropertyOwnership(
+            route,
+            insertData,
+            user,
+            admin
+          );
+
+        if (!allowed) {
+          return sendError(
+            res,
+            403,
+            "You can only add details to your own property"
+          );
+        }
       }
 
       const { data, error } = await supabase
@@ -648,10 +1034,19 @@ module.exports = async (req, res) => {
       });
     }
 
+    // ========================================
     // UPDATE RECORD
-    if (["PUT", "PATCH"].includes(req.method)) {
+    // ========================================
+
+    if (
+      ["PUT", "PATCH"].includes(req.method)
+    ) {
       if (!id) {
-        return sendError(res, 400, "Record ID is required");
+        return sendError(
+          res,
+          400,
+          "Record ID is required"
+        );
       }
 
       const user = await requireUser(req, res);
@@ -660,19 +1055,28 @@ module.exports = async (req, res) => {
       const admin = await isAdmin(user.id);
       const updateData = cleanFields(route, body);
 
-      // Never permit changing ownership or primary keys.
+      // Never allow client-controlled ownership or roles.
       delete updateData.user_id;
       delete updateData.id;
       delete updateData.role;
 
       if (route === "profiles") {
         for (const key of Object.keys(updateData)) {
-          if (!["name", "phone", "city", "state", "bio"].includes(key)) {
+          if (
+            ![
+              "name",
+              "phone",
+              "city",
+              "state",
+              "bio",
+            ].includes(key)
+          ) {
             delete updateData[key];
           }
         }
 
-        updateData.updated_at = new Date().toISOString();
+        updateData.updated_at =
+          new Date().toISOString();
 
         const { data, error } = await supabase
           .from("profiles")
@@ -683,7 +1087,13 @@ module.exports = async (req, res) => {
 
         if (error) throw error;
 
-        if (!data) return sendError(res, 404, "Profile not found");
+        if (!data) {
+          return sendError(
+            res,
+            404,
+            "Profile not found"
+          );
+        }
 
         return res.status(200).json({
           success: true,
@@ -691,18 +1101,37 @@ module.exports = async (req, res) => {
         });
       }
 
-      let query = supabase.from(table).update(updateData).eq("id", id);
+      let query = supabase
+        .from(table)
+        .update(updateData)
+        .eq("id", id);
 
       if (!admin && USER_OWNED.has(route)) {
         query = query.eq("user_id", user.id);
-      } else if (!admin && !USER_OWNED.has(route)) {
-        return sendError(res, 403, "You are not allowed to update this resource");
+      } else if (
+        !admin &&
+        !USER_OWNED.has(route)
+      ) {
+        return sendError(
+          res,
+          403,
+          "You are not allowed to update this resource"
+        );
       }
 
-      const { data, error } = await query.select().maybeSingle();
+      const { data, error } = await query
+        .select()
+        .maybeSingle();
 
       if (error) throw error;
-      if (!data) return sendError(res, 404, "Record not found or access denied");
+
+      if (!data) {
+        return sendError(
+          res,
+          404,
+          "Record not found or access denied"
+        );
+      }
 
       return res.status(200).json({
         success: true,
@@ -711,10 +1140,17 @@ module.exports = async (req, res) => {
       });
     }
 
+    // ========================================
     // DELETE RECORD
+    // ========================================
+
     if (req.method === "DELETE") {
       if (!id) {
-        return sendError(res, 400, "Record ID is required");
+        return sendError(
+          res,
+          400,
+          "Record ID is required"
+        );
       }
 
       const user = await requireUser(req, res);
@@ -723,19 +1159,35 @@ module.exports = async (req, res) => {
       const admin = await isAdmin(user.id);
 
       if (!admin && !USER_OWNED.has(route)) {
-        return sendError(res, 403, "You are not allowed to delete this resource");
+        return sendError(
+          res,
+          403,
+          "You are not allowed to delete this resource"
+        );
       }
 
-      let query = supabase.from(table).delete().eq("id", id);
+      let query = supabase
+        .from(table)
+        .delete()
+        .eq("id", id);
 
       if (!admin && USER_OWNED.has(route)) {
         query = query.eq("user_id", user.id);
       }
 
-      const { data, error } = await query.select().maybeSingle();
+      const { data, error } = await query
+        .select()
+        .maybeSingle();
 
       if (error) throw error;
-      if (!data) return sendError(res, 404, "Record not found or access denied");
+
+      if (!data) {
+        return sendError(
+          res,
+          404,
+          "Record not found or access denied"
+        );
+      }
 
       return res.status(200).json({
         success: true,
@@ -755,15 +1207,22 @@ module.exports = async (req, res) => {
 
     const status = Number(error?.status) || 500;
 
-    return res.status(status >= 400 && status <= 599 ? status : 500).json({
-      success: false,
-      message:
-        status < 500
-          ? error.message || "Request failed"
-          : "Server error. Check backend logs and Supabase configuration.",
-      ...(process.env.NODE_ENV !== "production" && error?.code
-        ? { code: error.code }
-        : {}),
-    });
+    return res
+      .status(
+        status >= 400 && status <= 599
+          ? status
+          : 500
+      )
+      .json({
+        success: false,
+        message:
+          status < 500
+            ? error.message || "Request failed"
+            : "Server error. Check backend logs and Supabase configuration.",
+        ...(process.env.NODE_ENV !== "production" &&
+        error?.code
+          ? { code: error.code }
+          : {}),
+      });
   }
 };
